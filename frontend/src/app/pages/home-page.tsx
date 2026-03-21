@@ -31,9 +31,7 @@ export function HomePage() {
             <nav className="bg-white border-b border-gray-200 px-4 py-3">
                 <div className="max-w-7xl mx-auto flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                        <div className="w-8 h-8 bg-[#1A56DB] rounded-lg flex items-center justify-center">
-                            <MapPin className="w-5 h-5 text-white" />
-                        </div>
+                        <img src="/favicon.png" alt="ParkCastSG Logo" className="w-8 h-8 rounded-lg object-contain" />
                         <span className="text-xl font-semibold text-gray-900">ParkCastSG</span>
                     </div>
                     <Button
