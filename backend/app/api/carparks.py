@@ -1,4 +1,4 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 router = APIRouter()
@@ -55,11 +55,7 @@ def get_nearby_carparks(lat: float, lng: float, radius: int = 500):
 @router.get("/availability/live", response_model=CarparkAvailability)
 def get_live_availability(carpark_id: str):
     # TODO: fetch real-time availability from DB/external API
-    return CarparkAvailability(
-        id=carpark_id,
-        name="Mock Carpark",
-        lat=1.2936,
-        lng=103.8574,
-        available_lots=88,
-        crowd_level="low",
-    )
+    carpark = next((cp for cp in _MOCK_CARPARKS if cp.id == carpark_id), None)
+    if carpark is None:
+        raise HTTPException(status_code=404, detail=f"Carpark '{carpark_id}' not found")
+    return carpark
