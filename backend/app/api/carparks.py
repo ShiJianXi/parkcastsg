@@ -9,7 +9,7 @@ class CarparkLocation(BaseModel):
     lng: float
 
 
-class CarparkAvailabilityMock(BaseModel):
+class CarparkAvailability(BaseModel):
     id: str
     name: str
     lat: float
@@ -19,7 +19,7 @@ class CarparkAvailabilityMock(BaseModel):
 
 
 _MOCK_CARPARKS = [
-    CarparkAvailabilityMock(
+    CarparkAvailability(
         id="CP001",
         name="Suntec City Carpark",
         lat=1.2936,
@@ -27,7 +27,7 @@ _MOCK_CARPARKS = [
         available_lots=120,
         crowd_level="low",
     ),
-    CarparkAvailabilityMock(
+    CarparkAvailability(
         id="CP002",
         name="Marina Square Carpark",
         lat=1.2909,
@@ -35,7 +35,7 @@ _MOCK_CARPARKS = [
         available_lots=45,
         crowd_level="medium",
     ),
-    CarparkAvailabilityMock(
+    CarparkAvailability(
         id="CP003",
         name="Esplanade Carpark",
         lat=1.2896,
@@ -46,16 +46,16 @@ _MOCK_CARPARKS = [
 ]
 
 
-@router.get("/carparks/nearby", response_model=list[CarparkAvailabilityMock])
+@router.get("/carparks/nearby", response_model=list[CarparkAvailability])
 def get_nearby_carparks(lat: float, lng: float, radius: int = 500):
     # TODO: filter by distance once real data is wired up
     return _MOCK_CARPARKS
 
 
-@router.get("/availability/live", response_model=CarparkAvailabilityMock)
+@router.get("/availability/live", response_model=CarparkAvailability)
 def get_live_availability(carpark_id: str):
     # TODO: fetch real-time availability from DB/external API
-    return CarparkAvailabilityMock(
+    return CarparkAvailability(
         id=carpark_id,
         name="Mock Carpark",
         lat=1.2936,
