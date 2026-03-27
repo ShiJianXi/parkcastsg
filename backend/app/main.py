@@ -1,6 +1,8 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.api import carparks
+
 app = FastAPI(title="ParkCast SG API")
 
 app.add_middleware(
@@ -15,3 +17,6 @@ app.add_middleware(
 @app.get("/health")
 def health_check():
     return {"status": "healthy"}
+
+
+app.include_router(carparks.router, prefix="/api/v1")
