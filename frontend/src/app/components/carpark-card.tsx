@@ -59,7 +59,7 @@ export function CarparkCard({ carpark, isSelected, showRainIcon, onClick }: Carp
 
                         {/* Price */}
                         <span className="text-sm font-medium text-gray-900">
-                            ~${carpark.hourlyRate.toFixed(2)}/hr
+                            ~${carpark.hourlyRate.toFixed(2)}/hr (Might not be accurate as of now)
                         </span>
 
                         {/* Rain Icon */}

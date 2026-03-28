@@ -1,0 +1,88 @@
+import type { Carpark, AvailabilityLevel } from '../app/data/carparks';
+
+const API_BASE = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8000';
+
+// ---------------------------------------------------------------------------
+// Raw shape returned by the backend
+// ---------------------------------------------------------------------------
+export interface NearbyCarpark {
+    id: string;
+    name: string;
+    address: string;
+    lat: number;
+    lng: number;
+    available_lots: number;
+    total_lots: number;
+    crowd_level: 'low' | 'medium' | 'high' | 'full';
+    is_sheltered: boolean;
+    distance: number; // metres
+    night_parking: boolean;
+}
+
+// ---------------------------------------------------------------------------
+// API calls
+// ---------------------------------------------------------------------------
+
+export async function getNearbyCarparks(
+    lat: number,
+    lng: number,
+    radius: number
+): Promise<NearbyCarpark[]> {
+    const url = `${API_BASE}/api/v1/carparks/nearby?lat=${lat}&lng=${lng}&radius=${radius}`;
+    const res = await fetch(url);
+    if (!res.ok) {
+        throw new Error(`Carpark API error ${res.status}`);
+    }
+    return res.json();
+}
+
+export async function getCarparkById(id: string): Promise<NearbyCarpark> {
+    const url = `${API_BASE}/api/v1/carparks/${id}`;
+    const res = await fetch(url);
+    if (!res.ok) {
+        throw new Error(`Carpark API error ${res.status}`);
+    }
+    return res.json();
+}
+
+// ---------------------------------------------------------------------------
+// Transform backend shape → frontend Carpark type
+// ---------------------------------------------------------------------------
+
+function crowdToAvailability(crowd: string): AvailabilityLevel {
+    switch (crowd) {
+        case 'low':
+            return 'high';
+        case 'medium':
+            return 'moderate';
+        case 'high':
+            return 'low';
+        case 'full':
+            return 'full';
+        default:
+            return 'moderate';
+    }
+}
+
+function distanceToWalkingMinutes(distanceMetres: number): number {
+    // Average walking speed ~80 m/min
+    return Math.max(1, Math.round(distanceMetres / 80));
+}
+
+export function transformCarpark(raw: NearbyCarpark): Carpark {
+    return {
+        id: raw.id,
+        name: raw.name,
+        address: raw.address,
+        lat: raw.lat,
+        lng: raw.lng,
+        availableLots: raw.available_lots,
+        totalLots: raw.total_lots,
+        availabilityLevel: crowdToAvailability(raw.crowd_level),
+        walkingMinutes: distanceToWalkingMinutes(raw.distance),
+        hourlyRate: 0.60, // HDB standard rate — can be enriched later TODO: will change this to dynamic if needed in the future
+        isSheltered: raw.is_sheltered,
+        distance: raw.distance,
+        isRecommended: raw.available_lots > 10 && raw.is_sheltered,
+    };
+}

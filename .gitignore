@@ -32,3 +32,8 @@ pnpm-debug.log*
 # OS files
 .DS_Store
 Thumbs.db
+
+skills-lock.json
+.agents
+*.pyc
+backend/venv/

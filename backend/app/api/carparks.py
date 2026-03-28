@@ -1,61 +1,160 @@
+from __future__ import annotations
+
+from math import atan2, cos, radians, sin, sqrt
+
+import httpx
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
+from app.data.carpark_lookup import CARPARK_LOOKUP
+
 router = APIRouter()
 
+HDB_AVAILABILITY_URL = "https://api.data.gov.sg/v1/transport/carpark-availability"
 
-class CarparkLocation(BaseModel):
-    lat: float
-    lng: float
+
+# ---------------------------------------------------------------------------
+# Pydantic models
+# ---------------------------------------------------------------------------
 
 
 class CarparkAvailability(BaseModel):
     id: str
     name: str
+    address: str
     lat: float
     lng: float
     available_lots: int
-    crowd_level: str
+    total_lots: int
+    crowd_level: str  # "low" | "medium" | "high" | "full"
+    is_sheltered: bool
+    distance: int  # metres from the query point
+    night_parking: bool
 
 
-_MOCK_CARPARKS = [
-    CarparkAvailability(
-        id="CP001",
-        name="Suntec City Carpark",
-        lat=1.2936,
-        lng=103.8574,
-        available_lots=120,
-        crowd_level="low",
-    ),
-    CarparkAvailability(
-        id="CP002",
-        name="Marina Square Carpark",
-        lat=1.2909,
-        lng=103.8597,
-        available_lots=45,
-        crowd_level="medium",
-    ),
-    CarparkAvailability(
-        id="CP003",
-        name="Esplanade Carpark",
-        lat=1.2896,
-        lng=103.8554,
-        available_lots=5,
-        crowd_level="high",
-    ),
-]
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+
+def _haversine(lat1: float, lng1: float, lat2: float, lng2: float) -> float:
+    """Return distance in metres between two WGS84 points."""
+    R = 6_371_000  # Earth radius in metres
+    phi1, phi2 = radians(lat1), radians(lat2)
+    dphi = radians(lat2 - lat1)
+    dlambda = radians(lng2 - lng1)
+    a = sin(dphi / 2) ** 2 + cos(phi1) * cos(phi2) * sin(dlambda / 2) ** 2
+    return R * 2 * atan2(sqrt(a), sqrt(1 - a))
+
+
+def _crowd_level(available: int, total: int) -> str:
+    if total == 0:
+        return "full"
+    ratio = available / total
+    if available == 0:
+        return "full"
+    if ratio > 0.5:
+        return "low"
+    if ratio > 0.2:
+        return "medium"
+    return "high"
+
+
+# ---------------------------------------------------------------------------
+# Endpoints
+# ---------------------------------------------------------------------------
 
 
 @router.get("/carparks/nearby", response_model=list[CarparkAvailability])
-def get_nearby_carparks(lat: float, lng: float, radius: int = 500):
-    # TODO: filter by distance once real data is wired up
-    return _MOCK_CARPARKS
+async def get_nearby_carparks(lat: float, lng: float, radius: int = 500):
+    """
+    Return HDB carparks within `radius` metres of (lat, lng) with live
+    availability from data.gov.sg.
+    """
+    # 1. Fetch live availability snapshot
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            resp = await client.get(HDB_AVAILABILITY_URL)
+            resp.raise_for_status()
+    except httpx.HTTPError as exc:
+        raise HTTPException(status_code=502, detail=f"HDB API error: {exc}") from exc
+
+    carpark_data: list[dict] = resp.json()["items"][0]["carpark_data"]
+
+    # 2. Filter by distance and enrich with static info
+    results: list[CarparkAvailability] = []
+    for cp in carpark_data:
+        cp_no: str = cp.get("carpark_number", "")
+        info = CARPARK_LOOKUP.get(cp_no)
+        if info is None:
+            continue  # not in our HDB info dataset
+
+        dist = _haversine(lat, lng, info["lat"], info["lng"])
+        if dist > radius:
+            continue
+
+        # Sum across all lot types (C = Car, Y = Motorcycle, H = Heavy)
+        cp_info_list: list[dict] = cp.get("carpark_info", [])
+        available = sum(int(x.get("lots_available", 0)) for x in cp_info_list)
+        total = sum(int(x.get("total_lots", 0)) for x in cp_info_list)
+
+        results.append(
+            CarparkAvailability(
+                id=cp_no,
+                name=f"HDB {cp_no}",
+                address=info["address"],
+                lat=info["lat"],
+                lng=info["lng"],
+                available_lots=available,
+                total_lots=total,
+                crowd_level=_crowd_level(available, total),
+                is_sheltered=info["is_sheltered"],
+                distance=round(dist),
+                night_parking=info["night_parking"],
+            )
+        )
+
+    # Sort nearest first
+    results.sort(key=lambda x: x.distance)
+    return results
 
 
-@router.get("/availability/live", response_model=CarparkAvailability)
-def get_live_availability(carpark_id: str):
-    # TODO: fetch real-time availability from DB/external API
-    carpark = next((cp for cp in _MOCK_CARPARKS if cp.id == carpark_id), None)
-    if carpark is None:
+@router.get("/carparks/{carpark_id}", response_model=CarparkAvailability)
+async def get_carpark(carpark_id: str):
+    """
+    Return a single carpark's live availability by HDB carpark number.
+    """
+    info = CARPARK_LOOKUP.get(carpark_id.upper())
+    if info is None:
         raise HTTPException(status_code=404, detail=f"Carpark '{carpark_id}' not found")
-    return carpark
+
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            resp = await client.get(HDB_AVAILABILITY_URL)
+            resp.raise_for_status()
+    except httpx.HTTPError as exc:
+        raise HTTPException(status_code=502, detail=f"HDB API error: {exc}") from exc
+
+    carpark_data: list[dict] = resp.json()["items"][0]["carpark_data"]
+    cp = next((c for c in carpark_data if c.get("carpark_number") == carpark_id.upper()), None)
+
+    available = 0
+    total = 0
+    if cp:
+        for lot in cp.get("carpark_info", []):
+            available += int(lot.get("lots_available", 0))
+            total += int(lot.get("total_lots", 0))
+
+    return CarparkAvailability(
+        id=carpark_id.upper(),
+        name=f"HDB {carpark_id.upper()}",
+        address=info["address"],
+        lat=info["lat"],
+        lng=info["lng"],
+        available_lots=available,
+        total_lots=total,
+        crowd_level=_crowd_level(available, total),
+        is_sheltered=info["is_sheltered"],
+        distance=0,
+        night_parking=info["night_parking"],
+    )
