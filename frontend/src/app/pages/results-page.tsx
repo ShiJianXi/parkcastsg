@@ -24,12 +24,29 @@ export function ResultsPage() {
     const [showWeatherBanner, setShowWeatherBanner] = useState(true);
     const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
 
-    const destination = searchParams.get('q') || 'Marina Bay';
+    // Coordinate-based search (from "Use my location")
+    const latParam = searchParams.get('lat');
+    const lngParam = searchParams.get('lng');
+    const accuracyParam = searchParams.get('accuracy');
+    const coordLat = latParam !== null ? parseFloat(latParam) : null;
+    const coordLng = lngParam !== null ? parseFloat(lngParam) : null;
+    const userAccuracy = accuracyParam !== null ? parseFloat(accuracyParam) : null;
+    const hasCoords =
+        coordLat !== null && coordLng !== null && !isNaN(coordLat) && !isNaN(coordLng);
+
+    // Text-based search destination
+    const destination = searchParams.get('q') || 'My Location';
+
     const radiusParam = searchParams.get('radius');
     let radius = parseInt(radiusParam ?? '', 10);
     if (!Number.isFinite(radius) || radius <= 0) {
         radius = 500;
     }
+
+    // Derived user location for map (only when coord-based)
+    const userLocation = hasCoords
+        ? { lat: coordLat as number, lng: coordLng as number }
+        : null;
 
     // Track in-flight request so we can cancel stale results on fast navigation
     const cancelRef = useRef(false);
@@ -40,18 +57,32 @@ export function ResultsPage() {
         setError(null);
 
         try {
-            // 1. Geocode the destination to lat/lng
-            const coords = await geocodeQuery(destination);
-            if (cancelRef.current) return;
+            let lat: number;
+            let lng: number;
 
-            if (!coords) {
-                setError(`Could not find location "${destination}". Try a different address or postal code.`);
-                setIsLoading(false);
-                return;
+            if (hasCoords) {
+                // Use device coordinates directly — no geocoding needed
+                lat = coordLat as number;
+                lng = coordLng as number;
+            } else {
+                // 1. Geocode the destination to lat/lng
+                const coords = await geocodeQuery(destination);
+                if (cancelRef.current) return;
+
+                if (!coords) {
+                    setError(`Could not find location "${destination}". Try a different address or postal code.`);
+                    setIsLoading(false);
+                    return;
+                }
+
+                lat = coords.lat;
+                lng = coords.lng;
             }
 
+            if (cancelRef.current) return;
+
             // 2. Fetch nearby carparks from the backend
-            const raw = await getNearbyCarparks(coords.lat, coords.lng, radius);
+            const raw = await getNearbyCarparks(lat, lng, radius);
             if (cancelRef.current) return;
 
             // 3. Transform backend shape → frontend Carpark type
@@ -80,11 +111,11 @@ export function ResultsPage() {
     useEffect(() => {
         fetchCarparks();
         return () => {
-            // Cancel stale requests on destination / radius change
+            // Cancel stale requests on destination / radius / coords change
             cancelRef.current = true;
         };
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [destination, radius]);
+    }, [destination, radius, coordLat, coordLng]);
 
     // Re-apply filters/sort without re-fetching from the network
     useEffect(() => {
@@ -114,6 +145,16 @@ export function ResultsPage() {
         return `${mins} min${mins !== 1 ? 's' : ''} ago`;
     };
 
+    // Build a results URL preserving the current search type (coords vs text)
+    const buildResultsUrl = (newRadius: number): string => {
+        if (hasCoords) {
+            const accuracySegment =
+                userAccuracy !== null ? `&accuracy=${Math.round(userAccuracy)}` : '';
+            return `/results?lat=${coordLat}&lng=${coordLng}${accuracySegment}&radius=${newRadius}`;
+        }
+        return `/results?q=${encodeURIComponent(destination)}&radius=${newRadius}`;
+    };
+
     return (
         <div className="h-screen flex flex-col bg-[#F9FAFB]">
             {/* Sticky Header */}
@@ -127,7 +168,7 @@ export function ResultsPage() {
                     </button>
                     <div className="flex-1 min-w-0">
                         <h2 className="text-lg font-semibold text-gray-900 truncate">
-                            {destination}
+                            {hasCoords ? 'My Location' : destination}
                         </h2>
                     </div>
                     <button
@@ -146,11 +187,7 @@ export function ResultsPage() {
                         return (
                             <button
                                 key={val}
-                                onClick={() =>
-                                    navigate(
-                                        `/results?q=${encodeURIComponent(destination)}&radius=${val}`
-                                    )
-                                }
+                                onClick={() => navigate(buildResultsUrl(val))}
                                 className={`px-3 py-1.5 rounded-full text-xs font-medium ${
                                     radius === val
                                         ? 'bg-[#1A56DB] text-white'
@@ -219,11 +256,7 @@ export function ResultsPage() {
                                 <div className="flex flex-col gap-2 items-center">
                                     {radius < 2000 && (
                                         <button
-                                            onClick={() =>
-                                                navigate(
-                                                    `/results?q=${encodeURIComponent(destination)}&radius=2000`
-                                                )
-                                            }
+                                            onClick={() => navigate(buildResultsUrl(2000))}
                                             className="px-5 py-2.5 bg-[#1A56DB] text-white text-sm font-medium rounded-lg hover:bg-[#1444b8] transition-colors"
                                         >
                                             Expand to 2km
@@ -268,6 +301,8 @@ export function ResultsPage() {
                         carparks={carparks}
                         selectedCarparkId={selectedCarpark}
                         onPinClick={handleMapPinClick}
+                        userLocation={userLocation}
+                        userAccuracy={userAccuracy ?? undefined}
                     />
                 </div>
             </div>

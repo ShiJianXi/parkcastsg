@@ -3,12 +3,15 @@ import { useNavigate } from 'react-router';
 import { MapPin, Navigation } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
+import { getUserLocation } from '../../api/geolocation';
 
 export function HomePage() {
     const navigate = useNavigate();
     const [searchQuery, setSearchQuery] = useState('');
     const [radius, setRadius] = useState<300 | 500 | 1000 | 2000>(1000);
     const [isLoggedIn] = useState(false); // Mock login state
+    const [locationLoading, setLocationLoading] = useState(false);
+    const [locationError, setLocationError] = useState<string | null>(null);
 
     const handleSearch = () => {
         if (searchQuery.trim()) {
@@ -16,8 +19,17 @@ export function HomePage() {
         }
     };
 
-    const handleUseLocation = () => {
-        setSearchQuery('Marina Bay, Singapore');
+    const handleUseLocation = async () => {
+        setLocationLoading(true);
+        setLocationError(null);
+        try {
+            const { lat, lng, accuracy } = await getUserLocation();
+            navigate(`/results?lat=${lat}&lng=${lng}&accuracy=${Math.round(accuracy)}&radius=${radius}`);
+        } catch (err) {
+            setLocationError(err instanceof Error ? err.message : 'Could not retrieve your location.');
+        } finally {
+            setLocationLoading(false);
+        }
     };
 
     const handleQuickAccess = (location: string) => {
@@ -72,13 +84,21 @@ export function HomePage() {
                     </div>
 
                     {/* Use Location Button */}
-                    <button
-                        onClick={handleUseLocation}
-                        className="flex items-center gap-2 text-[#1A56DB] hover:text-[#1444b8] transition-colors"
-                    >
-                        <Navigation className="w-4 h-4" />
-                        <span className="text-sm font-medium">Use my location</span>
-                    </button>
+                    <div>
+                        <button
+                            onClick={handleUseLocation}
+                            disabled={locationLoading}
+                            className="flex items-center gap-2 text-[#1A56DB] hover:text-[#1444b8] transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+                        >
+                            <Navigation className="w-4 h-4" />
+                            <span className="text-sm font-medium">
+                                {locationLoading ? 'Getting location…' : 'Use my location'}
+                            </span>
+                        </button>
+                        {locationError && (
+                            <p className="mt-1.5 text-xs text-red-600">{locationError}</p>
+                        )}
+                    </div>
 
                     {/* Radius Selector */}
                     <div>
