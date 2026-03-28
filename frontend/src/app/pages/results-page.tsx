@@ -24,7 +24,15 @@ export function ResultsPage() {
     const [showWeatherBanner, setShowWeatherBanner] = useState(true);
     const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
 
-    const destination = searchParams.get('q') || 'Marina Bay';
+    const destination = searchParams.get('q') || 'My Location';
+    const latParam = searchParams.get('lat');
+    const lngParam = searchParams.get('lng');
+    const parsedLat = latParam !== null ? parseFloat(latParam) : NaN;
+    const parsedLng = lngParam !== null ? parseFloat(lngParam) : NaN;
+    const coordsFromParams =
+        Number.isFinite(parsedLat) && Number.isFinite(parsedLng)
+            ? { lat: parsedLat, lng: parsedLng }
+            : null;
     const radiusParam = searchParams.get('radius');
     let radius = parseInt(radiusParam ?? '', 10);
     if (!Number.isFinite(radius) || radius <= 0) {
@@ -40,14 +48,18 @@ export function ResultsPage() {
         setError(null);
 
         try {
-            // 1. Geocode the destination to lat/lng
-            const coords = await geocodeQuery(destination);
-            if (cancelRef.current) return;
+            let coords = coordsFromParams;
 
             if (!coords) {
-                setError(`Could not find location "${destination}". Try a different address or postal code.`);
-                setIsLoading(false);
-                return;
+                // 1. Geocode the destination to lat/lng
+                coords = await geocodeQuery(destination);
+                if (cancelRef.current) return;
+
+                if (!coords) {
+                    setError(`Could not find location "${destination}". Try a different address or postal code.`);
+                    setIsLoading(false);
+                    return;
+                }
             }
 
             // 2. Fetch nearby carparks from the backend
@@ -84,7 +96,7 @@ export function ResultsPage() {
             cancelRef.current = true;
         };
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [destination, radius]);
+    }, [destination, latParam, lngParam, radius]);
 
     // Re-apply filters/sort without re-fetching from the network
     useEffect(() => {
@@ -143,14 +155,13 @@ export function ResultsPage() {
                 <div className="flex gap-2 mt-3">
                     {[300, 500, 1000, 2000].map((val) => {
                         const label = val >= 1000 ? `${val / 1000}km` : `${val}m`;
+                        const href = coordsFromParams
+                            ? `/results?lat=${coordsFromParams.lat}&lng=${coordsFromParams.lng}&radius=${val}`
+                            : `/results?q=${encodeURIComponent(destination)}&radius=${val}`;
                         return (
                             <button
                                 key={val}
-                                onClick={() =>
-                                    navigate(
-                                        `/results?q=${encodeURIComponent(destination)}&radius=${val}`
-                                    )
-                                }
+                                onClick={() => navigate(href)}
                                 className={`px-3 py-1.5 rounded-full text-xs font-medium ${
                                     radius === val
                                         ? 'bg-[#1A56DB] text-white'
@@ -221,7 +232,9 @@ export function ResultsPage() {
                                         <button
                                             onClick={() =>
                                                 navigate(
-                                                    `/results?q=${encodeURIComponent(destination)}&radius=2000`
+                                                    coordsFromParams
+                                                        ? `/results?lat=${coordsFromParams.lat}&lng=${coordsFromParams.lng}&radius=2000`
+                                                        : `/results?q=${encodeURIComponent(destination)}&radius=2000`
                                                 )
                                             }
                                             className="px-5 py-2.5 bg-[#1A56DB] text-white text-sm font-medium rounded-lg hover:bg-[#1444b8] transition-colors"
