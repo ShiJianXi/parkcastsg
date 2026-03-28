@@ -7,7 +7,7 @@ import { Input } from '../components/ui/input';
 export function HomePage() {
     const navigate = useNavigate();
     const [searchQuery, setSearchQuery] = useState('');
-    const [radius, setRadius] = useState<300 | 500 | 1000>(500);
+    const [radius, setRadius] = useState<300 | 500 | 1000 | 2000>(1000);
     const [isLoggedIn] = useState(false); // Mock login state
 
     const handleSearch = () => {
@@ -86,10 +86,10 @@ export function HomePage() {
                             Search radius
                         </label>
                         <div className="flex gap-2">
-                            {[300, 500, 1000].map((r) => (
+                            {[300, 500, 1000, 2000].map((r) => (
                                 <button
                                     key={r}
-                                    onClick={() => setRadius(r as 300 | 500 | 1000)}
+                                    onClick={() => setRadius(r as 300 | 500 | 1000 | 2000)}
                                     className={`flex-1 py-2.5 px-4 rounded-full text-sm font-medium transition-all ${radius === r
                                         ? 'bg-[#1A56DB] text-white shadow-md'
                                         : 'bg-gray-100 text-gray-700 hover:bg-gray-200'

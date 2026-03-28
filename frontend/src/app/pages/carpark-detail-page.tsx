@@ -18,7 +18,7 @@ export function CarparkDetailPage() {
         return (
             <div className="h-screen flex items-center justify-center">
                 <div className="text-center">
-                    <h2 className="text-xl font-semibold text-gray-900 mb-2">Carpark not found</h2>
+                    <h2 className="text-xl font-semibold text-gray-900 mb-2">Carpark not found, to be implemented</h2>
                     <Button onClick={() => navigate('/')}>Go Home</Button>
                 </div>
             </div>
