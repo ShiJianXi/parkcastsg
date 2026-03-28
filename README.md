@@ -232,7 +232,7 @@ The app will be available at **http://localhost:5173**.
 
 | Source | What it provides | Key |
 |---|---|---|
-| [data.gov.sg HDB Carpark Availability](https://data.gov.sg/dataset/hdb-carpark-information) | Live lots available per carpark | None required |
+| [data.gov.sg HDB Carpark Availability](https://api.data.gov.sg/v1/transport/carpark-availability) | Live lots available per carpark | None required |
 | `backend/app/data/hdb_clean_coords.csv` | WGS84 lat/lng per HDB carpark | N/A (static file) |
 | `backend/app/data/HDBCarparkInformation.csv` | Address, type, sheltered/night parking flags | N/A (static file) |
 | [OneMap API](https://www.onemap.gov.sg/apidocs/) | Geocoding (address/postal code → lat/lng) | None required |

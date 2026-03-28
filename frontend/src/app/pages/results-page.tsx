@@ -25,7 +25,11 @@ export function ResultsPage() {
     const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
 
     const destination = searchParams.get('q') || 'Marina Bay';
-    const radius = parseInt(searchParams.get('radius') || '500', 10);
+    const radiusParam = searchParams.get('radius');
+    let radius = parseInt(radiusParam ?? '', 10);
+    if (!Number.isFinite(radius) || radius <= 0) {
+        radius = 500;
+    }
 
     // Track in-flight request so we can cancel stale results on fast navigation
     const cancelRef = useRef(false);

@@ -1,6 +1,6 @@
 # parkcastsg
 
-# 🛰️ Data Ingestion Pipeline
+## 🛰️ Data Ingestion Pipeline
 
 This module handles the automated polling, cleaning, and spatial mapping of Singapore's carpark and weather data. It is designed to run as a scheduled task (e.g., AWS Lambda) every 5 minutes.
 

@@ -79,8 +79,41 @@ async def get_nearby_carparks(lat: float, lng: float, radius: int = 500):
     except httpx.HTTPError as exc:
         raise HTTPException(status_code=502, detail=f"HDB API error: {exc}") from exc
 
-    carpark_data: list[dict] = resp.json()["items"][0]["carpark_data"]
+    # Validate response shape from HDB API
+    try:
+        data = resp.json()
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=502,
+            detail=f"Unexpected HDB API response: invalid JSON ({exc})",
+        ) from exc
 
+    if not isinstance(data, dict):
+        raise HTTPException(
+            status_code=502,
+            detail="Unexpected HDB API response: top-level JSON is not an object",
+        )
+
+    items = data.get("items")
+    if not isinstance(items, list) or not items:
+        raise HTTPException(
+            status_code=502,
+            detail="Unexpected HDB API response: 'items' list is missing or empty",
+        )
+
+    first_item = items[0]
+    if not isinstance(first_item, dict) or "carpark_data" not in first_item:
+        raise HTTPException(
+            status_code=502,
+            detail="Unexpected HDB API response: 'carpark_data' is missing",
+        )
+
+    carpark_data = first_item["carpark_data"]
+    if not isinstance(carpark_data, list):
+        raise HTTPException(
+            status_code=502,
+            detail="Unexpected HDB API response: 'carpark_data' is not a list",
+        )
     # 2. Filter by distance and enrich with static info
     results: list[CarparkAvailability] = []
     for cp in carpark_data:
@@ -137,13 +170,19 @@ async def get_carpark(carpark_id: str):
 
     carpark_data: list[dict] = resp.json()["items"][0]["carpark_data"]
     cp = next((c for c in carpark_data if c.get("carpark_number") == carpark_id.upper()), None)
+    if cp is None:
+        # The carpark exists in our lookup but is missing from the live HDB snapshot.
+        # Treat this as an upstream data issue rather than "0 available lots".
+        raise HTTPException(
+            status_code=502,
+            detail=f"HDB API did not return availability for carpark '{carpark_id.upper()}'",
+        )
 
     available = 0
     total = 0
-    if cp:
-        for lot in cp.get("carpark_info", []):
-            available += int(lot.get("lots_available", 0))
-            total += int(lot.get("total_lots", 0))
+    for lot in cp.get("carpark_info", []):
+        available += int(lot.get("lots_available", 0))
+        total += int(lot.get("total_lots", 0))
 
     return CarparkAvailability(
         id=carpark_id.upper(),
