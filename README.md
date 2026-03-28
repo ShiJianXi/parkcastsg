@@ -196,6 +196,13 @@ The app will be available at **http://localhost:5173**.
 
 ---
 
+## Deployed Backend API
+
+The live backend API is available at:
+- **[http://parkcast-api-env.eba-9ixmryjr.ap-southeast-1.elasticbeanstalk.com/docs](http://parkcast-api-env.eba-9ixmryjr.ap-southeast-1.elasticbeanstalk.com/docs#/default/health_check_health_get)** → Interactive Swagger UI documentation
+
+---
+
 ## API Endpoints
 
 | Method | Path | Description |
