@@ -9,6 +9,7 @@ import { LoadingSkeleton } from '../components/loading-skeleton';
 import { sortCarparks, filterShelteredCarparks, type Carpark } from '../data/carparks';
 import { geocodeQuery } from '../../api/geocode';
 import { getNearbyCarparks, transformCarpark } from '../../api/carparkService';
+import { getWeatherForecast, type WeatherData } from '../../api/weatherService';
 
 export function ResultsPage() {
     const navigate = useNavigate();
@@ -21,9 +22,11 @@ export function ResultsPage() {
         'recommended'
     );
     const [rainMode, setRainMode] = useState(false);
-    const [showWeatherBanner, setShowWeatherBanner] = useState(true);
+    const [showWeatherBanner, setShowWeatherBanner] = useState(false);
     const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
-    const [searchCoords, setSearchCoords] = useState<{lat: number, lng: number} | null>(null);
+    const [searchCoords, setSearchCoords] = useState<{ lat: number, lng: number } | null>(null);
+    const [weather, setWeather] = useState<WeatherData | null>(null);
+    const [isWeatherAutoActivated, setIsWeatherAutoActivated] = useState(false);
 
     const destination = searchParams.get('q') || 'My Location';
     const latParam = searchParams.get('lat');
@@ -50,7 +53,7 @@ export function ResultsPage() {
 
         try {
             // 1. Geocode the destination to lat/lng
-            const coords = await geocodeQuery(destination);
+            let coords = await geocodeQuery(destination);
             if (cancelRef.current) return;
             setSearchCoords(coords);
 
@@ -73,8 +76,29 @@ export function ResultsPage() {
             // 3. Transform backend shape → frontend Carpark type
             let results: Carpark[] = raw.map(transformCarpark);
 
+            // Fetch weather
+            let isRainingLocally = false;
+            try {
+                const weatherData = await getWeatherForecast(coords.lat, coords.lng);
+                if (!cancelRef.current) {
+                    setWeather(weatherData);
+                    setShowWeatherBanner(true);
+                    if (weatherData.isRaining) {
+                        isRainingLocally = true;
+                        setRainMode(true);
+                        setIsWeatherAutoActivated(true);
+                    } else {
+                        setIsWeatherAutoActivated(false);
+                    }
+                }
+            } catch (err) {
+                console.error('Weather fetch error:', err);
+            }
+
+            if (cancelRef.current) return;
+
             // 4. Apply local filters
-            if (rainMode) {
+            if (rainMode || isRainingLocally) {
                 results = filterShelteredCarparks(results);
             }
             results = sortCarparks(results, sortBy);
@@ -176,11 +200,10 @@ export function ResultsPage() {
                             <button
                                 key={val}
                                 onClick={() => navigate(href)}
-                                className={`px-3 py-1.5 rounded-full text-xs font-medium ${
-                                    radius === val
-                                        ? 'bg-[#1A56DB] text-white'
-                                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                                }`}
+                                className={`px-3 py-1.5 rounded-full text-xs font-medium ${radius === val
+                                    ? 'bg-[#1A56DB] text-white'
+                                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                                    }`}
                             >
                                 {label}
                             </button>
@@ -189,9 +212,14 @@ export function ResultsPage() {
                 </div>
             </div>
 
-            {/* Weather Banner */}
-            {showWeatherBanner && (
-                <WeatherBanner onDismiss={() => setShowWeatherBanner(false)} />
+            {/* Weather Alert */}
+            {showWeatherBanner && weather && (
+                <WeatherBanner
+                    weatherText={`${weather.forecast} expected in ${weather.area}`}
+                    isAutoActivated={isWeatherAutoActivated}
+                    isRaining={weather.isRaining}
+                    onDismiss={() => setShowWeatherBanner(false)}
+                />
             )}
 
             {/* Filter Chips */}

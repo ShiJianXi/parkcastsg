@@ -3,9 +3,10 @@ import { useNavigate, useParams, useSearchParams } from 'react-router';
 import { ArrowLeft, Navigation, Heart, Bell, Cloud, Sun, CloudRain } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { PremiumModal } from '../components/premium-modal';
-import { mockWeatherForecast, getAvailabilityColor, type Carpark } from '../data/carparks';
+import { getAvailabilityColor, type Carpark } from '../data/carparks';
 import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Cell } from 'recharts';
 import { getCarparkById, transformCarpark } from '../../api/carparkService';
+import { getWeatherForecast, type WeatherData } from '../../api/weatherService';
 import { LoadingSkeleton } from '../components/loading-skeleton';
 
 export function CarparkDetailPage() {
@@ -17,6 +18,7 @@ export function CarparkDetailPage() {
 
     // Dynamic states
     const [carpark, setCarpark] = useState<Carpark | null>(null);
+    const [weather, setWeather] = useState<WeatherData | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
@@ -44,8 +46,11 @@ export function CarparkDetailPage() {
                     }
                 }
                 const rawData = await getCarparkById(id, lat, lng);
+                const rawWeather = await getWeatherForecast(rawData.lat, rawData.lng).catch(() => null);
+
                 if (isMounted) {
                     setCarpark(transformCarpark(rawData));
+                    setWeather(rawWeather);
                 }
             } catch (err) {
                 if (isMounted) {
@@ -113,14 +118,15 @@ export function CarparkDetailPage() {
         { time: '+2h', value: carpark.prediction?.hour2 || 0 },
     ];
 
-    const getWeatherIcon = (type: string) => {
-        switch (type) {
-            case 'sun':
-                return <Sun className="w-5 h-5 text-yellow-500" />;
-            case 'cloud':
-                return <Cloud className="w-5 h-5 text-gray-400" />;
-            case 'rain':
-                return <CloudRain className="w-5 h-5 text-blue-500" />;
+    const getWeatherIcon = (forecast: string) => {
+        if (!forecast) return <Sun className="w-8 h-8 text-yellow-500" />;
+        const lower = forecast.toLowerCase();
+        if (lower.includes('rain') || lower.includes('shower') || lower.includes('thundery')) {
+            return <CloudRain className="w-8 h-8 text-blue-500" />;
+        } else if (lower.includes('cloud')) {
+            return <Cloud className="w-8 h-8 text-gray-400" />;
+        } else {
+            return <Sun className="w-8 h-8 text-yellow-500" />;
         }
     };
 
@@ -310,14 +316,19 @@ export function CarparkDetailPage() {
                         </div>
 
                         <div>
-                            <p className="text-sm text-gray-600 mb-3">Next 2-hour forecast (Mocked to be integrated with Weather API)</p>
-                            <div className="flex gap-4">
-                                {mockWeatherForecast.map((forecast, index) => (
-                                    <div key={index} className="flex-1 text-center">
-                                        <div className="flex justify-center mb-2">{getWeatherIcon(forecast.type)}</div>
-                                        <p className="text-xs text-gray-600">{forecast.time}</p>
-                                    </div>
-                                ))}
+                            <p className="text-sm text-gray-600 mb-3">
+                                Live 2-hour forecast for {weather?.area || 'this area'}{' '}
+                                {weather?.validPeriod && <span className="text-xs text-gray-500 font-medium">({weather.validPeriod})</span>}
+                            </p>
+                            <div className="flex flex-col items-center p-4 bg-gray-50 rounded-lg border border-gray-100">
+                                {weather ? (
+                                    <>
+                                        <div className="mb-2">{getWeatherIcon(weather.forecast)}</div>
+                                        <p className="text-sm font-medium text-gray-900">{weather.forecast}</p>
+                                    </>
+                                ) : (
+                                    <p className="text-sm text-gray-500">Weather data unavailable</p>
+                                )}
                             </div>
                         </div>
                     </div>
