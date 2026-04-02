@@ -30,9 +30,19 @@ export function CarparkDetailPage() {
             try {
                 const queryLat = searchParams.get('lat');
                 const queryLng = searchParams.get('lng');
-                const lat = queryLat ? parseFloat(queryLat) : undefined;
-                const lng = queryLng ? parseFloat(queryLng) : undefined;
-                
+
+                let lat: number | undefined;
+                let lng: number | undefined;
+
+                if (queryLat !== null && queryLng !== null) {
+                    const parsedLat = parseFloat(queryLat);
+                    const parsedLng = parseFloat(queryLng);
+
+                    if (Number.isFinite(parsedLat) && Number.isFinite(parsedLng)) {
+                        lat = parsedLat;
+                        lng = parsedLng;
+                    }
+                }
                 const rawData = await getCarparkById(id, lat, lng);
                 if (isMounted) {
                     setCarpark(transformCarpark(rawData));
