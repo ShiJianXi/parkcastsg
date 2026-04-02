@@ -23,6 +23,7 @@ export function ResultsPage() {
     const [rainMode, setRainMode] = useState(false);
     const [showWeatherBanner, setShowWeatherBanner] = useState(true);
     const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+    const [searchCoords, setSearchCoords] = useState<{lat: number, lng: number} | null>(null);
 
     const destination = searchParams.get('q') || 'Marina Bay';
     const radiusParam = searchParams.get('radius');
@@ -43,6 +44,7 @@ export function ResultsPage() {
             // 1. Geocode the destination to lat/lng
             const coords = await geocodeQuery(destination);
             if (cancelRef.current) return;
+            setSearchCoords(coords);
 
             if (!coords) {
                 setError(`Could not find location "${destination}". Try a different address or postal code.`);
@@ -98,13 +100,23 @@ export function ResultsPage() {
     }, [sortBy, rainMode]);
 
     const handleCarparkClick = (id: string) => {
-        navigate(`/carpark/${id}`);
+        setSelectedCarpark(id);
+        const element = document.getElementById(`carpark-${id}`);
+        element?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    };
+
+    const handleViewDetails = (id: string) => {
+        let url = `/carpark/${id}`;
+        if (searchCoords) {
+            url += `?lat=${searchCoords.lat}&lng=${searchCoords.lng}`;
+        }
+        navigate(url);
     };
 
     const handleMapPinClick = (id: string) => {
         setSelectedCarpark(id);
         const element = document.getElementById(`carpark-${id}`);
-        element?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        element?.scrollIntoView({ behavior: 'smooth', block: 'center' });
     };
 
     const formatLastUpdated = (date: Date): string => {
@@ -248,6 +260,7 @@ export function ResultsPage() {
                                         isSelected={selectedCarpark === carpark.id}
                                         showRainIcon={rainMode}
                                         onClick={() => handleCarparkClick(carpark.id)}
+                                        onViewDetails={() => handleViewDetails(carpark.id)}
                                     />
                                 ))}
                             </>

@@ -153,7 +153,7 @@ async def get_nearby_carparks(lat: float, lng: float, radius: int = 500):
 
 
 @router.get("/carparks/{carpark_id}", response_model=CarparkAvailability)
-async def get_carpark(carpark_id: str):
+async def get_carpark(carpark_id: str, lat: float | None = None, lng: float | None = None):
     """
     Return a single carpark's live availability by HDB carpark number.
     """
@@ -184,6 +184,10 @@ async def get_carpark(carpark_id: str):
         available += int(lot.get("lots_available", 0))
         total += int(lot.get("total_lots", 0))
 
+    dist = 0
+    if lat is not None and lng is not None:
+        dist = _haversine(lat, lng, info["lat"], info["lng"])
+
     return CarparkAvailability(
         id=carpark_id.upper(),
         name=f"HDB {carpark_id.upper()}",
@@ -194,6 +198,6 @@ async def get_carpark(carpark_id: str):
         total_lots=total,
         crowd_level=_crowd_level(available, total),
         is_sheltered=info["is_sheltered"],
-        distance=0,
+        distance=round(dist),
         night_parking=info["night_parking"],
     )

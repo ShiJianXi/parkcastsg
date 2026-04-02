@@ -6,9 +6,10 @@ interface CarparkCardProps {
     isSelected: boolean;
     showRainIcon: boolean;
     onClick: () => void;
+    onViewDetails?: () => void;
 }
 
-export function CarparkCard({ carpark, isSelected, showRainIcon, onClick }: CarparkCardProps) {
+export function CarparkCard({ carpark, isSelected, showRainIcon, onClick, onViewDetails }: CarparkCardProps) {
     const availabilityColor = getAvailabilityColor(carpark.availabilityLevel);
     const availabilityText = getAvailabilityText(carpark);
 
@@ -77,6 +78,21 @@ export function CarparkCard({ carpark, isSelected, showRainIcon, onClick }: Carp
                                 High availability · {carpark.isSheltered ? 'Sheltered' : 'Open-air'} · $
                                 {carpark.hourlyRate.toFixed(2)}/hr
                             </p>
+                        </div>
+                    )}
+                    
+                    {/* View Details Button (visible when selected) */}
+                    {isSelected && (
+                        <div className="mt-4 border-t border-gray-100 pt-3">
+                            <button
+                                onClick={(e) => {
+                                    e.stopPropagation(); // prevent triggering the card's onClick
+                                    if (onViewDetails) onViewDetails();
+                                }}
+                                className="w-full bg-[#1A56DB] text-white py-2 rounded-lg text-sm font-medium hover:bg-[#1444b8] transition-colors"
+                            >
+                                View full details
+                            </button>
                         </div>
                     )}
                 </div>
