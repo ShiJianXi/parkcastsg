@@ -1,17 +1,34 @@
-export interface UserLocation {
-    lat: number;
-    lng: number;
+import type { Coordinates } from './geocode';
+
+export type GeolocationErrorCode = 'PERMISSION_DENIED' | 'POSITION_UNAVAILABLE' | 'TIMEOUT' | 'UNSUPPORTED';
+
+export class GeolocationError extends Error {
+    constructor(
+        public readonly code: GeolocationErrorCode,
+        message: string,
+    ) {
+        super(message);
+        this.name = 'GeolocationError';
+    }
+}
+
+export interface UserLocation extends Coordinates {
     accuracy: number; // metres
 }
 
 /**
- * Requests the device's current position via the browser Geolocation API.
- * Returns coordinates and accuracy on success, or throws a user-friendly error.
+ * Request the device's current position using the browser Geolocation API.
+ * Returns WGS84 { lat, lng, accuracy } on success, or throws a GeolocationError on failure.
  */
 export function getUserLocation(): Promise<UserLocation> {
     return new Promise((resolve, reject) => {
         if (!navigator.geolocation) {
-            reject(new Error('Geolocation is not supported by your browser.'));
+            reject(
+                new GeolocationError(
+                    'UNSUPPORTED',
+                    'Your browser does not support location services.',
+                ),
+            );
             return;
         }
 
@@ -23,26 +40,42 @@ export function getUserLocation(): Promise<UserLocation> {
                     accuracy: position.coords.accuracy,
                 });
             },
-            (error) => {
-                switch (error.code) {
-                    case error.PERMISSION_DENIED:
-                        reject(new Error('Location permission denied. Please allow location access and try again.'));
+            (err) => {
+                switch (err.code) {
+                    case GeolocationPositionError.PERMISSION_DENIED:
+                        reject(
+                            new GeolocationError(
+                                'PERMISSION_DENIED',
+                                'Location permission was denied. Please allow location access in your browser settings.',
+                            ),
+                        );
                         break;
-                    case error.POSITION_UNAVAILABLE:
-                        reject(new Error('Location information is unavailable. Please try again later.'));
+                    case GeolocationPositionError.POSITION_UNAVAILABLE:
+                        reject(
+                            new GeolocationError(
+                                'POSITION_UNAVAILABLE',
+                                'Your location could not be determined. Please try again.',
+                            ),
+                        );
                         break;
-                    case error.TIMEOUT:
-                        reject(new Error('Location request timed out. Please try again.'));
+                    case GeolocationPositionError.TIMEOUT:
+                        reject(
+                            new GeolocationError(
+                                'TIMEOUT',
+                                'Location request timed out. Please try again.',
+                            ),
+                        );
                         break;
                     default:
-                        reject(new Error('An unknown error occurred while retrieving your location.'));
+                        reject(
+                            new GeolocationError(
+                                'POSITION_UNAVAILABLE',
+                                'An unknown error occurred while retrieving your location.',
+                            ),
+                        );
                 }
             },
-            {
-                enableHighAccuracy: true,
-                timeout: 10000,
-                maximumAge: 60000,
-            }
+            { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 },
         );
     });
 }

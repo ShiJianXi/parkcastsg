@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router';
 import { MapPin, Navigation } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
-import { getUserLocation } from '../../api/geolocation';
+import { getUserLocation, GeolocationError } from '../../api/geolocation';
 
 export function HomePage() {
     const navigate = useNavigate();
@@ -23,10 +23,14 @@ export function HomePage() {
         setLocationLoading(true);
         setLocationError(null);
         try {
-            const { lat, lng, accuracy } = await getUserLocation();
-            navigate(`/results?lat=${lat}&lng=${lng}&accuracy=${Math.round(accuracy)}&radius=${radius}`);
+            const coords = await getUserLocation();
+            navigate(`/results?lat=${coords.lat}&lng=${coords.lng}&accuracy=${Math.round(coords.accuracy)}&radius=${radius}`);
         } catch (err) {
-            setLocationError(err instanceof Error ? err.message : 'Could not retrieve your location.');
+            if (err instanceof GeolocationError) {
+                setLocationError(err.message);
+            } else {
+                setLocationError('Could not retrieve your location. Please try again.');
+            }
         } finally {
             setLocationLoading(false);
         }
@@ -84,19 +88,19 @@ export function HomePage() {
                     </div>
 
                     {/* Use Location Button */}
-                    <div>
+                    <div className="space-y-1">
                         <button
                             onClick={handleUseLocation}
                             disabled={locationLoading}
                             className="flex items-center gap-2 text-[#1A56DB] hover:text-[#1444b8] transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
                         >
-                            <Navigation className="w-4 h-4" />
+                            <Navigation className={`w-4 h-4 ${locationLoading ? 'animate-pulse' : ''}`} />
                             <span className="text-sm font-medium">
                                 {locationLoading ? 'Getting location…' : 'Use my location'}
                             </span>
                         </button>
                         {locationError && (
-                            <p className="mt-1.5 text-xs text-red-600">{locationError}</p>
+                            <p className="text-xs text-red-600">{locationError}</p>
                         )}
                     </div>
 

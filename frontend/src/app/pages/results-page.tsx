@@ -24,29 +24,23 @@ export function ResultsPage() {
     const [showWeatherBanner, setShowWeatherBanner] = useState(true);
     const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
 
-    // Coordinate-based search (from "Use my location")
+    const destination = searchParams.get('q') || 'My Location';
     const latParam = searchParams.get('lat');
     const lngParam = searchParams.get('lng');
     const accuracyParam = searchParams.get('accuracy');
-    const coordLat = latParam !== null ? parseFloat(latParam) : null;
-    const coordLng = lngParam !== null ? parseFloat(lngParam) : null;
+    const parsedLat = latParam !== null ? parseFloat(latParam) : NaN;
+    const parsedLng = lngParam !== null ? parseFloat(lngParam) : NaN;
+    const coordsFromParams =
+        Number.isFinite(parsedLat) && Number.isFinite(parsedLng)
+            ? { lat: parsedLat, lng: parsedLng }
+            : null;
     const userAccuracy = accuracyParam !== null ? parseFloat(accuracyParam) : null;
-    const hasCoords =
-        coordLat !== null && coordLng !== null && !isNaN(coordLat) && !isNaN(coordLng);
-
-    // Text-based search destination
-    const destination = searchParams.get('q') || 'My Location';
 
     const radiusParam = searchParams.get('radius');
     let radius = parseInt(radiusParam ?? '', 10);
     if (!Number.isFinite(radius) || radius <= 0) {
         radius = 500;
     }
-
-    // Derived user location for map (only when coord-based)
-    const userLocation = hasCoords
-        ? { lat: coordLat as number, lng: coordLng as number }
-        : null;
 
     // Track in-flight request so we can cancel stale results on fast navigation
     const cancelRef = useRef(false);
@@ -57,16 +51,11 @@ export function ResultsPage() {
         setError(null);
 
         try {
-            let lat: number;
-            let lng: number;
+            let coords = coordsFromParams;
 
-            if (hasCoords) {
-                // Use device coordinates directly — no geocoding needed
-                lat = coordLat as number;
-                lng = coordLng as number;
-            } else {
+            if (!coords) {
                 // 1. Geocode the destination to lat/lng
-                const coords = await geocodeQuery(destination);
+                coords = await geocodeQuery(destination);
                 if (cancelRef.current) return;
 
                 if (!coords) {
@@ -74,15 +63,12 @@ export function ResultsPage() {
                     setIsLoading(false);
                     return;
                 }
-
-                lat = coords.lat;
-                lng = coords.lng;
             }
 
             if (cancelRef.current) return;
 
             // 2. Fetch nearby carparks from the backend
-            const raw = await getNearbyCarparks(lat, lng, radius);
+            const raw = await getNearbyCarparks(coords.lat, coords.lng, radius);
             if (cancelRef.current) return;
 
             // 3. Transform backend shape → frontend Carpark type
@@ -115,7 +101,7 @@ export function ResultsPage() {
             cancelRef.current = true;
         };
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [destination, radius, coordLat, coordLng]);
+    }, [destination, latParam, lngParam, radius]);
 
     // Re-apply filters/sort without re-fetching from the network
     useEffect(() => {
@@ -147,10 +133,10 @@ export function ResultsPage() {
 
     // Build a results URL preserving the current search type (coords vs text)
     const buildResultsUrl = (newRadius: number): string => {
-        if (hasCoords) {
+        if (coordsFromParams) {
             const accuracySegment =
                 userAccuracy !== null ? `&accuracy=${Math.round(userAccuracy)}` : '';
-            return `/results?lat=${coordLat}&lng=${coordLng}${accuracySegment}&radius=${newRadius}`;
+            return `/results?lat=${coordsFromParams.lat}&lng=${coordsFromParams.lng}${accuracySegment}&radius=${newRadius}`;
         }
         return `/results?q=${encodeURIComponent(destination)}&radius=${newRadius}`;
     };
@@ -168,7 +154,7 @@ export function ResultsPage() {
                     </button>
                     <div className="flex-1 min-w-0">
                         <h2 className="text-lg font-semibold text-gray-900 truncate">
-                            {hasCoords ? 'My Location' : destination}
+                            {coordsFromParams ? 'My Location' : destination}
                         </h2>
                     </div>
                     <button
@@ -301,7 +287,7 @@ export function ResultsPage() {
                         carparks={carparks}
                         selectedCarparkId={selectedCarpark}
                         onPinClick={handleMapPinClick}
-                        userLocation={userLocation}
+                        userLocation={coordsFromParams}
                         userAccuracy={userAccuracy ?? undefined}
                     />
                 </div>
