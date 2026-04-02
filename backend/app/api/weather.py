@@ -2,9 +2,16 @@ import httpx
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from math import atan2, cos, radians, sin, sqrt
+import time
 
 router = APIRouter()
 WEATHER_FORECAST_URL = "https://api-open.data.gov.sg/v2/real-time/api/two-hr-forecast"
+
+_WEATHER_CACHE = {
+    "payload": None,
+    "timestamp": 0
+}
+CACHE_TTL = 300  # 5 minutes
 
 class WeatherResponse(BaseModel):
     area: str
@@ -19,6 +26,7 @@ def _haversine(lat1: float, lng1: float, lat2: float, lng2: float) -> float:
     dphi = radians(lat2 - lat1)
     dlambda = radians(lng2 - lng1)
     a = sin(dphi / 2) ** 2 + cos(phi1) * cos(phi2) * sin(dlambda / 2) ** 2
+    a = min(1.0, max(0.0, a))
     return R * 2 * atan2(sqrt(a), sqrt(1 - a))
 
 def _is_raining(forecast_str: str) -> bool:
@@ -31,15 +39,22 @@ async def get_weather(lat: float, lng: float):
     Given coordinates, find the closest weather area in Singapore and return
     the 2-hour forecast for that area.
     """
-    try:
-        headers = {"User-Agent": "Mozilla/5.0"}
-        async with httpx.AsyncClient(timeout=10.0, headers=headers) as client:
-            resp = await client.get(WEATHER_FORECAST_URL)
-            resp.raise_for_status()
-    except httpx.HTTPError as exc:
-        raise HTTPException(status_code=502, detail=f"NEA API error: {exc}") from exc
+    current_time = time.time()
+    if _WEATHER_CACHE["payload"] and (current_time - _WEATHER_CACHE["timestamp"] < CACHE_TTL):
+        payload = _WEATHER_CACHE["payload"]
+    else:
+        try:
+            headers = {"User-Agent": "Mozilla/5.0"}
+            async with httpx.AsyncClient(timeout=10.0, headers=headers) as client:
+                resp = await client.get(WEATHER_FORECAST_URL)
+                resp.raise_for_status()
+        except httpx.HTTPError as exc:
+            raise HTTPException(status_code=502, detail=f"NEA API error: {exc}") from exc
 
-    payload = resp.json()
+        payload = resp.json()
+        _WEATHER_CACHE["payload"] = payload
+        _WEATHER_CACHE["timestamp"] = current_time
+
     try:
         data = payload["data"]
         area_metadata = data["area_metadata"]
