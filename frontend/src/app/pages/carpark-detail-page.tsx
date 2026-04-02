@@ -192,7 +192,11 @@ export function CarparkDetailPage() {
                                 <div
                                     className="h-full transition-all rounded-full"
                                     style={{
-                                        width: `${((carpark.totalLots - carpark.availableLots) / (carpark.totalLots || 1)) * 100}%`,
+                                        width: `${Math.min(100, Math.max(0,
+                                            carpark.totalLots > 0
+                                                ? ((carpark.totalLots - Math.min(carpark.availableLots, carpark.totalLots)) / carpark.totalLots) * 100
+                                                : 0
+                                        ))}%`,
                                         backgroundColor: getAvailabilityColor(carpark.availabilityLevel),
                                     }}
                                 />
