@@ -36,8 +36,12 @@ export async function getNearbyCarparks(
     return res.json();
 }
 
-export async function getCarparkById(id: string): Promise<NearbyCarpark> {
-    const url = `${API_BASE}/api/v1/carparks/${id}`;
+export async function getCarparkById(id: string, lat?: number, lng?: number): Promise<NearbyCarpark> {
+    let url = `${API_BASE}/api/v1/carparks/${id}`;
+    if (lat !== undefined && lng !== undefined) {
+        url += `?lat=${lat}&lng=${lng}`;
+    }
+    
     const res = await fetch(url);
     if (!res.ok) {
         throw new Error(`Carpark API error ${res.status}`);
@@ -83,6 +87,7 @@ export function transformCarpark(raw: NearbyCarpark): Carpark {
         hourlyRate: 0.60, // HDB standard rate — can be enriched later TODO: will change this to dynamic if needed in the future
         isSheltered: raw.is_sheltered,
         distance: raw.distance,
+        nightParking: raw.night_parking,
         isRecommended: raw.available_lots > 10 && raw.is_sheltered,
     };
 }
