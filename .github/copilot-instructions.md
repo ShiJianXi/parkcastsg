@@ -85,6 +85,33 @@ Local dev defaults to `http://localhost:5173` when `CORS_ALLOW_ORIGINS` is unset
 - The backend returns `snake_case`; `carparkService.ts` transforms it to `camelCase` for the frontend
 - `AvailabilityLevel` (`'high' | 'moderate' | 'low' | 'full'`) maps from backend `crowd_level` (`'low' | 'medium' | 'high' | 'full'`) — note the inversion: backend `"low"` crowd = frontend `"high"` availability
 
+### Results Page – Navigation Modes
+
+The Results Page (`frontend/src/app/pages/results-page.tsx`) supports two URL shapes:
+
+| Mode | URL example | When used |
+|---|---|---|
+| Coordinate-based | `/results?lat=1.3685&lng=103.9527&radius=1000` | "My Location" / map click |
+| Text-based | `/results?q=Pasir+Ris&radius=1000` | Address / postal code search |
+
+**Critical rule — always prefer URL coordinates over geocoding:**
+
+```ts
+// ✅ Correct
+let coords = coordsFromParams;          // use lat/lng from URL if present
+if (!coords) {
+    coords = await geocodeQuery(destination);  // only geocode when missing
+}
+if (!coords) {
+    setError(`Could not find location "${destination}".`);
+    return;
+}
+```
+
+When `lat` and `lng` are present in the URL, `destination` defaults to `"My Location"` — a UI display label that **cannot be geocoded**. Never pass `destination` to `geocodeQuery` when valid coordinates are already available. Forgetting this causes a silent failure because the geocoder returns `null` for `"My Location"` and the backend is never reached.
+
+When building any feature that navigates to or reads from the Results Page, preserve both URL shapes. Radius-pill and "Expand to 2km" buttons already do this correctly — use them as a reference.
+
 ### Data Pipeline
 - Scripts in `src/data_pipeline/` are run manually to regenerate static CSVs
 - `hdb_clean_coords.csv` supplies WGS84 coordinates; `HDBCarparkInformation.csv` supplies address and feature flags
