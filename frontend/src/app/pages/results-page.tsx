@@ -52,9 +52,24 @@ export function ResultsPage() {
         setError(null);
 
         try {
-            // 1. Geocode the destination to lat/lng
-            let coords = await geocodeQuery(destination);
-            if (cancelRef.current) return;
+
+            // 1. Prefer URL coordinates if present
+            let coords = coordsFromParams;
+
+            // 2. Otherwise geocode the destination text
+            if (!coords) {
+                coords = await geocodeQuery(destination);
+                if (cancelRef.current) return;
+            }
+
+            // 3. If still no coordinates, show error
+            if (!coords) {
+                setError(`Could not find location "${destination}". Try a different address or postal code.`);
+                setIsLoading(false);
+                return;
+            }
+
+            // 4. Save the coordinates for later use (e.g., detail page)
             setSearchCoords(coords);
 
             if (!coords) {
