@@ -1,44 +1,132 @@
-import { useState } from 'react';
-import { useNavigate, useParams } from 'react-router';
+import { useState, useEffect } from 'react';
+import { useNavigate, useParams, useSearchParams } from 'react-router';
 import { ArrowLeft, Navigation, Heart, Bell, Cloud, Sun, CloudRain } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { PremiumModal } from '../components/premium-modal';
-import { mockCarparks, mockWeatherForecast, getAvailabilityColor } from '../data/carparks';
+import { getAvailabilityColor, type Carpark } from '../data/carparks';
 import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Cell } from 'recharts';
+import { getCarparkById, transformCarpark } from '../../api/carparkService';
+import { getWeatherForecast, type WeatherData } from '../../api/weatherService';
+import { LoadingSkeleton } from '../components/loading-skeleton';
 
 export function CarparkDetailPage() {
     const navigate = useNavigate();
     const { id } = useParams();
+    const [searchParams] = useSearchParams();
     const [showPremiumModal, setShowPremiumModal] = useState(false);
     const [isSaved, setIsSaved] = useState(false);
 
-    const carpark = mockCarparks.find((cp) => cp.id === id);
+    // Dynamic states
+    const [carpark, setCarpark] = useState<Carpark | null>(null);
+    const [weather, setWeather] = useState<WeatherData | null>(null);
+    const [isLoading, setIsLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
 
-    if (!carpark) {
+    useEffect(() => {
+        if (!id) return;
+
+        let isMounted = true;
+        const fetchCarparkDetails = async () => {
+            setIsLoading(true);
+            setError(null);
+            try {
+                const queryLat = searchParams.get('lat');
+                const queryLng = searchParams.get('lng');
+
+                let lat: number | undefined;
+                let lng: number | undefined;
+
+                if (queryLat !== null && queryLng !== null) {
+                    const parsedLat = parseFloat(queryLat);
+                    const parsedLng = parseFloat(queryLng);
+
+                    if (Number.isFinite(parsedLat) && Number.isFinite(parsedLng)) {
+                        lat = parsedLat;
+                        lng = parsedLng;
+                    }
+                }
+                const rawData = await getCarparkById(id, lat, lng);
+                const rawWeather = await getWeatherForecast(rawData.lat, rawData.lng).catch(() => null);
+
+                if (isMounted) {
+                    setCarpark(transformCarpark(rawData));
+                    setWeather(rawWeather);
+                }
+            } catch (err) {
+                if (isMounted) {
+                    setError('Failed to fetch carpark details. Please try again.');
+                    console.error(err);
+                }
+            } finally {
+                if (isMounted) {
+                    setIsLoading(false);
+                }
+            }
+        };
+
+        fetchCarparkDetails();
+
+        return () => {
+            isMounted = false;
+        };
+    }, [id, searchParams]);
+
+    if (isLoading) {
         return (
-            <div className="h-screen flex items-center justify-center">
-                <div className="text-center">
-                    <h2 className="text-xl font-semibold text-gray-900 mb-2">Carpark not found, to be implemented</h2>
-                    <Button onClick={() => navigate('/')}>Go Home</Button>
+            <div className="h-screen bg-[#F9FAFB] flex flex-col p-4">
+                <LoadingSkeleton count={1} />
+                <div className="mt-4"><LoadingSkeleton count={3} /></div>
+            </div>
+        );
+    }
+
+    if (error || !carpark) {
+        return (
+            <div className="h-screen flex flex-col bg-[#F9FAFB]">
+                <div className="bg-white border-b border-gray-200 px-4 py-3 sticky top-0 z-10 shadow-sm flex items-center gap-3">
+                    <button
+                        onClick={() => navigate(-1)}
+                        className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                    >
+                        <ArrowLeft className="w-5 h-5 text-gray-700" />
+                    </button>
+                    <h1 className="text-lg font-semibold text-gray-900 flex-1 truncate">Back</h1>
+                </div>
+                <div className="flex-1 flex flex-col items-center justify-center p-4">
+                    <div className="text-center">
+                        <div className="w-16 h-16 bg-red-50 rounded-full flex items-center justify-center mx-auto mb-4">
+                            <span className="text-2xl">😕</span>
+                        </div>
+                        <h2 className="text-xl font-semibold text-gray-900 mb-2">
+                            {error ? 'Something went wrong' : 'Carpark not found'}
+                        </h2>
+                        <p className="text-gray-600 mb-6">
+                            {error || "We couldn't find details for this carpark. It might not be under HDB management."}
+                        </p>
+                        <Button onClick={() => navigate('/')}>Go Home</Button>
+                    </div>
                 </div>
             </div>
         );
     }
 
+    // Mock predictions based on current availability slightly jittered
+    // TO DO: Integrated with ML model
     const predictionData = [
         { time: 'Now', value: carpark.availableLots },
         { time: '+1h', value: carpark.prediction?.hour1 || 0 },
         { time: '+2h', value: carpark.prediction?.hour2 || 0 },
     ];
 
-    const getWeatherIcon = (type: string) => {
-        switch (type) {
-            case 'sun':
-                return <Sun className="w-5 h-5 text-yellow-500" />;
-            case 'cloud':
-                return <Cloud className="w-5 h-5 text-gray-400" />;
-            case 'rain':
-                return <CloudRain className="w-5 h-5 text-blue-500" />;
+    const getWeatherIcon = (forecast: string) => {
+        if (!forecast) return <Sun className="w-8 h-8 text-yellow-500" />;
+        const lower = forecast.toLowerCase();
+        if (lower.includes('rain') || lower.includes('shower') || lower.includes('thundery')) {
+            return <CloudRain className="w-8 h-8 text-blue-500" />;
+        } else if (lower.includes('cloud')) {
+            return <Cloud className="w-8 h-8 text-gray-400" />;
+        } else {
+            return <Sun className="w-8 h-8 text-yellow-500" />;
         }
     };
 
@@ -75,7 +163,9 @@ export function CarparkDetailPage() {
                                 <div className="w-12 h-12 bg-[#1A56DB] rounded-full flex items-center justify-center mx-auto mb-2">
                                     <Navigation className="w-6 h-6 text-white" />
                                 </div>
-                                <p className="text-sm text-gray-600">{carpark.walkingMinutes} min walk</p>
+                                {carpark.walkingMinutes ? (
+                                    <p className="text-sm text-gray-600">{carpark.walkingMinutes} min walk</p>
+                                ) : null}
                                 <p className="text-xs text-gray-500 mt-1">{carpark.address}</p>
                             </div>
                         </div>
@@ -88,7 +178,7 @@ export function CarparkDetailPage() {
                         </h2>
                         <div className="text-center mb-4">
                             <div className="text-4xl font-semibold text-gray-900 mb-2">
-                                {carpark.availableLots} / {carpark.totalLots}
+                                {carpark.availableLots} <span className="text-2xl text-gray-400">/ {carpark.totalLots}</span>
                             </div>
                             <p className="text-gray-600">lots available</p>
                         </div>
@@ -101,36 +191,40 @@ export function CarparkDetailPage() {
                                     className="font-medium capitalize"
                                     style={{ color: getAvailabilityColor(carpark.availabilityLevel) }}
                                 >
-                                    {crowdLevel}
+                                    {carpark.availabilityLevel === 'high' ? 'Low Crowd' : carpark.availabilityLevel === 'moderate' ? 'Moderate' : 'High Crowd'}
                                 </span>
                             </div>
                             <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
                                 <div
                                     className="h-full transition-all rounded-full"
                                     style={{
-                                        width: `${((carpark.totalLots - carpark.availableLots) / carpark.totalLots) * 100}%`,
+                                        width: `${Math.min(100, Math.max(0,
+                                            carpark.totalLots > 0
+                                                ? ((carpark.totalLots - Math.min(carpark.availableLots, carpark.totalLots)) / carpark.totalLots) * 100
+                                                : 0
+                                        ))}%`,
                                         backgroundColor: getAvailabilityColor(carpark.availabilityLevel),
                                     }}
                                 />
                             </div>
                         </div>
 
-                        <p className="text-xs text-gray-500 mt-3">Last updated: 2 mins ago</p>
+                        <p className="text-xs text-gray-500 mt-3">Live API from data.gov.sg</p>
                     </div>
 
                     {/* Prediction Section */}
                     <div className="bg-white rounded-[12px] p-6 shadow-sm border border-gray-200">
                         <div className="flex items-center justify-between mb-4">
                             <h2 className="text-base font-semibold text-gray-900">
-                                Predicted availability (next 2 hours)
+                                Predicted availability (next 2 hours) (Currently mocked, to be integrated with ML model)
                             </h2>
                             <span
-                                className={`px-2.5 py-1 rounded-full text-xs font-medium ${(carpark.prediction?.hour2 || 0) > 10
+                                className={`px-2.5 py-1 rounded-full text-xs font-medium ${predictionData[2].value > 10
                                     ? 'bg-green-100 text-green-700'
                                     : 'bg-red-100 text-red-700'
                                     }`}
                             >
-                                {(carpark.prediction?.hour2 || 0) > 10 ? 'Likely available' : 'Likely full'}
+                                {predictionData[2].value > 10 ? 'Likely available' : 'Likely full'}
                             </span>
                         </div>
 
@@ -152,7 +246,7 @@ export function CarparkDetailPage() {
                         </div>
 
                         <p className="text-xs text-gray-500 mt-2">
-                            Confidence: {carpark.prediction?.confidence || 'medium'}
+                            Confidence: medium (Estimated model)
                         </p>
                     </div>
 
@@ -168,9 +262,9 @@ export function CarparkDetailPage() {
                                 </p>
                             </div>
                             <div>
-                                <p className="text-sm text-gray-600 mb-1">Weekend</p>
-                                <p className="text-xl font-semibold text-gray-900">
-                                    ${(carpark.weekendRate || carpark.hourlyRate).toFixed(2)}/hr
+                                <p className="text-sm text-gray-600 mb-1">Night Parking</p>
+                                <p className="text-lg font-medium text-gray-900">
+                                    {carpark.nightParking ? 'Available' : 'No'}
                                 </p>
                             </div>
                         </div>
@@ -222,14 +316,19 @@ export function CarparkDetailPage() {
                         </div>
 
                         <div>
-                            <p className="text-sm text-gray-600 mb-3">Next 2-hour forecast</p>
-                            <div className="flex gap-4">
-                                {mockWeatherForecast.map((forecast, index) => (
-                                    <div key={index} className="flex-1 text-center">
-                                        <div className="flex justify-center mb-2">{getWeatherIcon(forecast.type)}</div>
-                                        <p className="text-xs text-gray-600">{forecast.time}</p>
-                                    </div>
-                                ))}
+                            <p className="text-sm text-gray-600 mb-3">
+                                Live 2-hour forecast for {weather?.area || 'this area'}{' '}
+                                {weather?.validPeriod && <span className="text-xs text-gray-500 font-medium">({weather.validPeriod})</span>}
+                            </p>
+                            <div className="flex flex-col items-center p-4 bg-gray-50 rounded-lg border border-gray-100">
+                                {weather ? (
+                                    <>
+                                        <div className="mb-2">{getWeatherIcon(weather.forecast)}</div>
+                                        <p className="text-sm font-medium text-gray-900">{weather.forecast}</p>
+                                    </>
+                                ) : (
+                                    <p className="text-sm text-gray-500">Weather data unavailable</p>
+                                )}
                             </div>
                         </div>
                     </div>
@@ -244,7 +343,7 @@ export function CarparkDetailPage() {
                         className="flex-1 bg-[#1A56DB] hover:bg-[#1444b8] text-white rounded-lg py-6"
                     >
                         <Navigation className="w-4 h-4 mr-2" />
-                        Navigate
+                        Navigate Here
                     </Button>
                     <Button
                         onClick={() => setIsSaved(!isSaved)}

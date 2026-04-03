@@ -9,6 +9,7 @@ import { LoadingSkeleton } from '../components/loading-skeleton';
 import { sortCarparks, filterShelteredCarparks, type Carpark } from '../data/carparks';
 import { geocodeQuery } from '../../api/geocode';
 import { getNearbyCarparks, transformCarpark } from '../../api/carparkService';
+import { getWeatherForecast, type WeatherData } from '../../api/weatherService';
 
 export function ResultsPage() {
     const navigate = useNavigate();
@@ -21,8 +22,11 @@ export function ResultsPage() {
         'recommended'
     );
     const [rainMode, setRainMode] = useState(false);
-    const [showWeatherBanner, setShowWeatherBanner] = useState(true);
+    const [showWeatherBanner, setShowWeatherBanner] = useState(false);
     const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+    const [searchCoords, setSearchCoords] = useState<{ lat: number, lng: number } | null>(null);
+    const [weather, setWeather] = useState<WeatherData | null>(null);
+    const [isWeatherAutoActivated, setIsWeatherAutoActivated] = useState(false);
 
     const destination = searchParams.get('q') || 'My Location';
     const latParam = searchParams.get('lat');
@@ -34,7 +38,8 @@ export function ResultsPage() {
         Number.isFinite(parsedLat) && Number.isFinite(parsedLng)
             ? { lat: parsedLat, lng: parsedLng }
             : null;
-    const userAccuracy = accuracyParam !== null ? parseFloat(accuracyParam) : null;
+    const parsedAccuracy = accuracyParam !== null ? parseFloat(accuracyParam) : NaN;
+    const userAccuracy = Number.isFinite(parsedAccuracy) && parsedAccuracy > 0 ? parsedAccuracy : null;
 
     const radiusParam = searchParams.get('radius');
     let radius = parseInt(radiusParam ?? '', 10);
@@ -51,19 +56,25 @@ export function ResultsPage() {
         setError(null);
 
         try {
+
+            // 1. Prefer URL coordinates if present
             let coords = coordsFromParams;
 
+            // 2. Otherwise geocode the destination text
             if (!coords) {
-                // 1. Geocode the destination to lat/lng
                 coords = await geocodeQuery(destination);
                 if (cancelRef.current) return;
-
-                if (!coords) {
-                    setError(`Could not find location "${destination}". Try a different address or postal code.`);
-                    setIsLoading(false);
-                    return;
-                }
             }
+
+            // 3. If still no coordinates, show error
+            if (!coords) {
+                setError(`Could not find location "${destination}". Try a different address or postal code.`);
+                setIsLoading(false);
+                return;
+            }
+
+            // 4. Save the coordinates for later use (e.g., detail page)
+            setSearchCoords(coords);
 
             if (cancelRef.current) return;
 
@@ -74,8 +85,29 @@ export function ResultsPage() {
             // 3. Transform backend shape → frontend Carpark type
             let results: Carpark[] = raw.map(transformCarpark);
 
+            // Fetch weather
+            let isRainingLocally = false;
+            try {
+                const weatherData = await getWeatherForecast(coords.lat, coords.lng);
+                if (!cancelRef.current) {
+                    setWeather(weatherData);
+                    setShowWeatherBanner(true);
+                    if (weatherData.isRaining) {
+                        isRainingLocally = true;
+                        setRainMode(true);
+                        setIsWeatherAutoActivated(true);
+                    } else {
+                        setIsWeatherAutoActivated(false);
+                    }
+                }
+            } catch (err) {
+                console.error('Weather fetch error:', err);
+            }
+
+            if (cancelRef.current) return;
+
             // 4. Apply local filters
-            if (rainMode) {
+            if (rainMode || isRainingLocally) {
                 results = filterShelteredCarparks(results);
             }
             results = sortCarparks(results, sortBy);
@@ -115,13 +147,23 @@ export function ResultsPage() {
     }, [sortBy, rainMode]);
 
     const handleCarparkClick = (id: string) => {
-        navigate(`/carpark/${id}`);
+        setSelectedCarpark(id);
+        const element = document.getElementById(`carpark-${id}`);
+        element?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    };
+
+    const handleViewDetails = (id: string) => {
+        let url = `/carpark/${id}`;
+        if (searchCoords) {
+            url += `?lat=${searchCoords.lat}&lng=${searchCoords.lng}`;
+        }
+        navigate(url);
     };
 
     const handleMapPinClick = (id: string) => {
         setSelectedCarpark(id);
         const element = document.getElementById(`carpark-${id}`);
-        element?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        element?.scrollIntoView({ behavior: 'smooth', block: 'center' });
     };
 
     const formatLastUpdated = (date: Date): string => {
@@ -187,9 +229,14 @@ export function ResultsPage() {
                 </div>
             </div>
 
-            {/* Weather Banner */}
-            {showWeatherBanner && (
-                <WeatherBanner onDismiss={() => setShowWeatherBanner(false)} />
+            {/* Weather Alert */}
+            {showWeatherBanner && weather && (
+                <WeatherBanner
+                    weatherText={`${weather.forecast} expected in ${weather.area}`}
+                    isAutoActivated={isWeatherAutoActivated}
+                    isRaining={weather.isRaining}
+                    onDismiss={() => setShowWeatherBanner(false)}
+                />
             )}
 
             {/* Filter Chips */}
@@ -267,6 +314,7 @@ export function ResultsPage() {
                                         isSelected={selectedCarpark === carpark.id}
                                         showRainIcon={rainMode}
                                         onClick={() => handleCarparkClick(carpark.id)}
+                                        onViewDetails={() => handleViewDetails(carpark.id)}
                                     />
                                 ))}
                             </>

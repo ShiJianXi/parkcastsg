@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, Circle, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import { type Carpark, getAvailabilityColor } from '../data/carparks';
@@ -89,6 +89,41 @@ function MapController({
     return null;
 }
 
+// Component to render individual markers and manage their popup state
+function CarparkMarker({ carpark, isSelected, onPinClick }: { carpark: Carpark; isSelected: boolean; onPinClick: (id: string) => void }) {
+    const markerRef = useRef<L.Marker>(null);
+
+    useEffect(() => {
+        if (isSelected && markerRef.current) {
+            // Slight delay ensures the map panning finishes or is in progress before opening the popup
+            setTimeout(() => {
+                markerRef.current?.openPopup();
+            }, 100);
+        }
+    }, [isSelected]);
+
+    const color = getAvailabilityColor(carpark.availabilityLevel);
+
+    return (
+        <Marker
+            position={[carpark.lat, carpark.lng]}
+            icon={createCustomIcon(color, isSelected)}
+            ref={markerRef}
+            eventHandlers={{
+                click: () => onPinClick(carpark.id),
+            }}
+        >
+            <Popup>
+                <div className="text-sm">
+                    <p className="font-semibold mb-1">{carpark.name}</p>
+                    <p className="text-gray-600 mb-1">{carpark.availableLots} / {carpark.totalLots} lots available</p>
+                    <p className="text-gray-600">~${carpark.hourlyRate.toFixed(2)}/hr</p>
+                </div>
+            </Popup>
+        </Marker>
+    );
+}
+
 // Separate component for map content to avoid context issues
 function MapContent({
     carparks,
@@ -112,7 +147,7 @@ function MapContent({
             />
 
             {/* User location accuracy circle */}
-            {userLocation && userAccuracy && showAccuracyCircle && (
+            {userLocation && Number.isFinite(userAccuracy) && (userAccuracy as number) > 0 && showAccuracyCircle && (
                 <Circle
                     center={[userLocation.lat, userLocation.lng]}
                     radius={userAccuracy}
@@ -143,26 +178,15 @@ function MapContent({
             )}
 
             {carparks.map((carpark) => {
-                const color = getAvailabilityColor(carpark.availabilityLevel);
                 const isSelected = selectedCarparkId === carpark.id;
 
                 return (
-                    <Marker
+                    <CarparkMarker
                         key={carpark.id}
-                        position={[carpark.lat, carpark.lng]}
-                        icon={createCustomIcon(color, isSelected)}
-                        eventHandlers={{
-                            click: () => onPinClick(carpark.id),
-                        }}
-                    >
-                        <Popup>
-                            <div className="text-sm">
-                                <p className="font-semibold mb-1">{carpark.name}</p>
-                                <p className="text-gray-600 mb-1">{carpark.availableLots} lots available</p>
-                                <p className="text-gray-600">${carpark.hourlyRate.toFixed(2)}/hr</p>
-                            </div>
-                        </Popup>
-                    </Marker>
+                        carpark={carpark}
+                        isSelected={isSelected}
+                        onPinClick={onPinClick}
+                    />
                 );
             })}
         </>

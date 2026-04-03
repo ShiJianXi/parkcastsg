@@ -15,6 +15,7 @@ export interface Carpark {
     isSheltered: boolean;
     isRecommended?: boolean;
     distance: number; // in meters
+    nightParking?: boolean;
     prediction?: {
         hour1: number;
         hour2: number;
