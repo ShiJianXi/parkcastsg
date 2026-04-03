@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useRef } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, Circle, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import { type Carpark, getAvailabilityColor } from '../data/carparks';
@@ -194,9 +194,6 @@ function MapContent({
 }
 
 export function CarparkMap(props: CarparkMapProps) {
-    const { userLocation, userAccuracy } = props;
-    const [showAccuracyCircle, setShowAccuracyCircle] = useState(true);
-
     // Default center (Marina Bay, Singapore)
     const defaultCenter: [number, number] = [1.2816, 103.8544];
 
@@ -208,7 +205,7 @@ export function CarparkMap(props: CarparkMapProps) {
                 className="h-full w-full"
                 zoomControl={true}
             >
-                <MapContent {...props} showAccuracyCircle={showAccuracyCircle} />
+                <MapContent {...props} showAccuracyCircle={true} />
             </MapContainer>
 
             {/* Legend */}
@@ -227,27 +224,7 @@ export function CarparkMap(props: CarparkMapProps) {
                         <div className="w-3 h-3 rounded-full bg-[#EF4444]" />
                         <span className="text-gray-700">Full</span>
                     </div>
-                    {userLocation && (
-                        <>
-                            <div className="flex items-center gap-2">
-                                <div className="w-3 h-3 rounded-full bg-[#1A56DB]" />
-                                <span className="text-gray-700">
-                                    Your location{userAccuracy ? ` (±${Math.round(userAccuracy)}m)` : ''}
-                                </span>
-                            </div>
-                            {userAccuracy && (
-                                <label className="flex items-center gap-2 cursor-pointer mt-1">
-                                    <input
-                                        type="checkbox"
-                                        checked={showAccuracyCircle}
-                                        onChange={(e) => setShowAccuracyCircle(e.target.checked)}
-                                        className="w-3 h-3 accent-[#1A56DB]"
-                                    />
-                                    <span className="text-gray-600">Show accuracy circle</span>
-                                </label>
-                            )}
-                        </>
-                    )}
+
                 </div>
             </div>
         </div>
