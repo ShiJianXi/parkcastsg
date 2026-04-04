@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { MapContainer, TileLayer, Marker, Popup, Circle, useMap } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, Popup, Circle, useMap, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
 import { type Carpark, getAvailabilityColor } from '../data/carparks';
 import { type Coordinates } from '../../api/geocode';
@@ -11,6 +11,7 @@ interface CarparkMapProps {
     onPinClick: (id: string) => void;
     userLocation?: Coordinates | null;
     userAccuracy?: number; // metres
+    onMapCenter?: (lat: number, lng: number) => void;
 }
 
 // Custom marker icon component
@@ -89,6 +90,26 @@ function MapController({
     return null;
 }
 
+// Component that fires onMapCenter only after user-initiated drags (not programmatic fitBounds/setView)
+function MapMoveDetector({ onMapCenter }: { onMapCenter: (lat: number, lng: number) => void }) {
+    const wasDragged = useRef(false);
+
+    useMapEvents({
+        dragend() {
+            wasDragged.current = true;
+        },
+        moveend(e) {
+            if (wasDragged.current) {
+                wasDragged.current = false;
+                const center = e.target.getCenter();
+                onMapCenter(center.lat, center.lng);
+            }
+        },
+    });
+
+    return null;
+}
+
 // Component to render individual markers and manage their popup state
 function CarparkMarker({ carpark, isSelected, onPinClick }: { carpark: Carpark; isSelected: boolean; onPinClick: (id: string) => void }) {
     const markerRef = useRef<L.Marker>(null);
@@ -131,6 +152,7 @@ function MapContent({
     onPinClick,
     userLocation,
     userAccuracy,
+    onMapCenter,
     showAccuracyCircle,
 }: CarparkMapProps & { showAccuracyCircle: boolean }) {
     return (
@@ -145,6 +167,8 @@ function MapContent({
                 selectedCarparkId={selectedCarparkId}
                 userLocation={userLocation}
             />
+
+            {onMapCenter && <MapMoveDetector onMapCenter={onMapCenter} />}
 
             {/* User location accuracy circle */}
             {(() => {

@@ -30,6 +30,7 @@ export function ResultsPage() {
     const [isWeatherAutoActivated, setIsWeatherAutoActivated] = useState(false);
     const [locationLoading, setLocationLoading] = useState(false);
     const [locationError, setLocationError] = useState<string | null>(null);
+    const [mapCenter, setMapCenter] = useState<{ lat: number; lng: number } | null>(null);
 
     const destination = searchParams.get('q') || 'My Location';
     const latParam = searchParams.get('lat');
@@ -57,6 +58,7 @@ export function ResultsPage() {
         cancelRef.current = false;
         setIsLoading(true);
         setError(null);
+        setMapCenter(null);
 
         try {
 
@@ -185,6 +187,20 @@ export function ResultsPage() {
         }
         return `/results?q=${encodeURIComponent(destination)}&radius=${newRadius}`;
     };
+
+    // Approximate planar distance in metres (sufficient for Singapore's small area)
+    const distanceMeters = (lat1: number, lng1: number, lat2: number, lng2: number): number => {
+        const dlat = (lat2 - lat1) * 111320;
+        const dlng = (lng2 - lng1) * 111320 * Math.cos((lat1 * Math.PI) / 180);
+        return Math.sqrt(dlat * dlat + dlng * dlng);
+    };
+
+    const searchCenter = coordsFromParams ?? searchCoords;
+    const showSearchArea =
+        !isLoading &&
+        mapCenter !== null &&
+        searchCenter !== null &&
+        distanceMeters(mapCenter.lat, mapCenter.lng, searchCenter.lat, searchCenter.lng) > 300;
 
     const handleUseLocation = async () => {
         setLocationLoading(true);
@@ -361,14 +377,29 @@ export function ResultsPage() {
                 </div>
 
                 {/* Map */}
-                <div className="lg:w-3/5 h-64 lg:h-auto">
+                <div className="lg:w-3/5 h-64 lg:h-auto relative">
                     <CarparkMap
                         carparks={carparks}
                         selectedCarparkId={selectedCarpark}
                         onPinClick={handleMapPinClick}
                         userLocation={coordsFromParams}
                         userAccuracy={userAccuracy ?? undefined}
+                        onMapCenter={(lat, lng) => setMapCenter({ lat, lng })}
                     />
+                    {showSearchArea && (
+                        <div className="absolute top-3 left-1/2 -translate-x-1/2 z-[1000]">
+                            <button
+                                onClick={() => {
+                                    if (mapCenter) {
+                                        navigate(`/results?lat=${mapCenter.lat}&lng=${mapCenter.lng}&radius=${radius}`);
+                                    }
+                                }}
+                                className="bg-white px-4 py-2 rounded-full shadow-lg text-sm font-medium text-[#1A56DB] hover:bg-gray-50 border border-gray-200 transition-colors whitespace-nowrap"
+                            >
+                                Search this area
+                            </button>
+                        </div>
+                    )}
                 </div>
             </div>
         </div>
