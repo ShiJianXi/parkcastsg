@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router';
-import { ArrowLeft, Filter, X } from 'lucide-react';
+import { ArrowLeft, Filter, Navigation, X } from 'lucide-react';
+import { getUserLocation, GeolocationError } from '../../api/geolocation';
 import { CarparkCard } from '../components/carpark-card';
 import { CarparkMap } from '../components/carpark-map';
 import { FilterChips } from '../components/filter-chips';
@@ -27,6 +28,8 @@ export function ResultsPage() {
     const [searchCoords, setSearchCoords] = useState<{ lat: number, lng: number } | null>(null);
     const [weather, setWeather] = useState<WeatherData | null>(null);
     const [isWeatherAutoActivated, setIsWeatherAutoActivated] = useState(false);
+    const [locationLoading, setLocationLoading] = useState(false);
+    const [locationError, setLocationError] = useState<string | null>(null);
 
     const destination = searchParams.get('q') || 'My Location';
     const latParam = searchParams.get('lat');
@@ -183,6 +186,23 @@ export function ResultsPage() {
         return `/results?q=${encodeURIComponent(destination)}&radius=${newRadius}`;
     };
 
+    const handleUseLocation = async () => {
+        setLocationLoading(true);
+        setLocationError(null);
+        try {
+            const loc = await getUserLocation();
+            navigate(`/results?lat=${loc.lat}&lng=${loc.lng}&accuracy=${Math.round(loc.accuracy)}&radius=${radius}`);
+        } catch (err) {
+            if (err instanceof GeolocationError) {
+                setLocationError(err.message);
+            } else {
+                setLocationError('Could not retrieve your location. Please try again.');
+            }
+        } finally {
+            setLocationLoading(false);
+        }
+    };
+
     return (
         <div className="h-screen flex flex-col bg-[#F9FAFB]">
             {/* Sticky Header */}
@@ -200,6 +220,14 @@ export function ResultsPage() {
                         </h2>
                     </div>
                     <button
+                        onClick={handleUseLocation}
+                        disabled={locationLoading}
+                        className="p-2 hover:bg-gray-100 rounded-lg transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+                        title="Use my location"
+                    >
+                        <Navigation className={`w-5 h-5 text-[#1A56DB] ${locationLoading ? 'animate-pulse' : ''}`} />
+                    </button>
+                    <button
                         onClick={fetchCarparks}
                         className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
                         title="Refresh"
@@ -207,6 +235,9 @@ export function ResultsPage() {
                         <Filter className="w-5 h-5 text-gray-700" />
                     </button>
                 </div>
+                {locationError && (
+                    <p className="text-xs text-red-600 mt-1">{locationError}</p>
+                )}
 
                 {/* Radius Pills */}
                 <div className="flex gap-2 mt-3">
