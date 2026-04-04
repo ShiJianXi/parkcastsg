@@ -4,6 +4,18 @@ Real-time Singapore carpark finder. Search by destination or postal code, view l
 
 ---
 
+## Backend Update
+
+The backend now includes a prediction API for checking the predicted availability of a specific carpark.
+
+### Local API Call
+
+```text
+http://127.0.0.1:8000/api/v1/carparks/{carpark_number}/prediction
+```
+
+---
+
 ## Architecture Overview
 
 ```
