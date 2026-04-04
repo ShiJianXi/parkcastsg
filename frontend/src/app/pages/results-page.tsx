@@ -31,6 +31,7 @@ export function ResultsPage() {
     const [locationLoading, setLocationLoading] = useState(false);
     const [locationError, setLocationError] = useState<string | null>(null);
     const [mapCenter, setMapCenter] = useState<{ lat: number; lng: number } | null>(null);
+    const [mapRadius, setMapRadius] = useState<number | null>(null);
 
     const destination = searchParams.get('q') || 'My Location';
     const latParam = searchParams.get('lat');
@@ -59,6 +60,7 @@ export function ResultsPage() {
         setIsLoading(true);
         setError(null);
         setMapCenter(null);
+        setMapRadius(null);
 
         try {
 
@@ -200,7 +202,8 @@ export function ResultsPage() {
         !isLoading &&
         mapCenter !== null &&
         searchCenter !== null &&
-        distanceMeters(mapCenter.lat, mapCenter.lng, searchCenter.lat, searchCenter.lng) > 300;
+        (distanceMeters(mapCenter.lat, mapCenter.lng, searchCenter.lat, searchCenter.lng) > 300 ||
+            (mapRadius !== null && Math.abs(mapRadius - radius) / radius > 0.3));
 
     const handleUseLocation = async () => {
         setLocationLoading(true);
@@ -384,14 +387,14 @@ export function ResultsPage() {
                         onPinClick={handleMapPinClick}
                         userLocation={userAccuracy !== null ? coordsFromParams : null}
                         userAccuracy={userAccuracy ?? undefined}
-                        onMapCenter={(lat, lng) => setMapCenter({ lat, lng })}
+                        onMapCenter={(lat, lng, r) => { setMapCenter({ lat, lng }); setMapRadius(r); }}
                     />
                     {showSearchArea && (
                         <div className="absolute top-3 left-1/2 -translate-x-1/2 z-[1000]">
                             <button
                                 onClick={() => {
                                     if (mapCenter) {
-                                        navigate(`/results?lat=${mapCenter.lat}&lng=${mapCenter.lng}&radius=${radius}`);
+                                        navigate(`/results?lat=${mapCenter.lat}&lng=${mapCenter.lng}&radius=${mapRadius ?? radius}`);
                                     }
                                 }}
                                 className="bg-white px-4 py-2 rounded-full shadow-lg text-sm font-medium text-[#1A56DB] hover:bg-gray-50 border border-gray-200 transition-colors whitespace-nowrap"

@@ -11,7 +11,7 @@ interface CarparkMapProps {
     onPinClick: (id: string) => void;
     userLocation?: Coordinates | null;
     userAccuracy?: number; // metres
-    onMapCenter?: (lat: number, lng: number) => void;
+    onMapCenter?: (lat: number, lng: number, radius: number) => void;
 }
 
 // Custom marker icon component
@@ -58,10 +58,12 @@ function MapController({
     carparks,
     selectedCarparkId,
     userLocation,
+    isProgrammatic,
 }: {
     carparks: Carpark[];
     selectedCarparkId: string | null;
     userLocation?: Coordinates | null;
+    isProgrammatic: { current: boolean };
 }) {
     const map = useMap();
 
@@ -69,6 +71,7 @@ function MapController({
         if (selectedCarparkId) {
             const selected = carparks.find((cp) => cp.id === selectedCarparkId);
             if (selected) {
+                isProgrammatic.current = true;
                 map.setView([selected.lat, selected.lng], 16, { animate: true });
                 return;
             }
@@ -81,29 +84,62 @@ function MapController({
                 points.push([userLocation.lat, userLocation.lng]);
             }
             const bounds = L.latLngBounds(points);
+            isProgrammatic.current = true;
             map.fitBounds(bounds, { padding: [50, 50] });
         } else if (userLocation) {
+            isProgrammatic.current = true;
             map.setView([userLocation.lat, userLocation.lng], 15, { animate: true });
         }
-    }, [carparks, selectedCarparkId, userLocation, map]);
+    }, [carparks, selectedCarparkId, userLocation, map, isProgrammatic]);
 
     return null;
 }
 
-// Component that fires onMapCenter only after user-initiated drags (not programmatic fitBounds/setView)
-function MapMoveDetector({ onMapCenter }: { onMapCenter: (lat: number, lng: number) => void }) {
+// Component that fires onMapCenter only after user-initiated drags or zooms (not programmatic fitBounds/setView)
+function MapMoveDetector({
+    onMapCenter,
+    isProgrammatic,
+}: {
+    onMapCenter: (lat: number, lng: number, radius: number) => void;
+    isProgrammatic: { current: boolean };
+}) {
     const wasDragged = useRef(false);
+    const wasZoomed = useRef(false);
 
     useMapEvents({
         dragend() {
             wasDragged.current = true;
         },
-        moveend(e) {
-            if (wasDragged.current) {
-                wasDragged.current = false;
-                const center = e.target.getCenter();
-                onMapCenter(center.lat, center.lng);
+        zoomend() {
+            // Only mark as user zoom when it wasn't triggered by our MapController
+            if (!isProgrammatic.current) {
+                wasZoomed.current = true;
             }
+        },
+        moveend(e) {
+            const userAction = wasDragged.current || wasZoomed.current;
+            wasDragged.current = false;
+            wasZoomed.current = false;
+
+            if (isProgrammatic.current) {
+                isProgrammatic.current = false;
+                return;
+            }
+
+            if (!userAction) return;
+
+            const map = e.target;
+            const center = map.getCenter();
+            const bounds = map.getBounds();
+            // Compute visible radius as the shorter half-dimension of the viewport in metres
+            const northMeters = Math.abs(bounds.getNorth() - center.lat) * 111320;
+            const eastMeters =
+                Math.abs(bounds.getEast() - center.lng) *
+                111320 *
+                Math.cos((center.lat * Math.PI) / 180);
+            const computedRadius = Math.max(200, Math.min(5000, Math.round(Math.min(northMeters, eastMeters))));
+
+            onMapCenter(center.lat, center.lng, computedRadius);
         },
     });
 
@@ -155,6 +191,8 @@ function MapContent({
     onMapCenter,
     showAccuracyCircle,
 }: CarparkMapProps & { showAccuracyCircle: boolean }) {
+    const isProgrammatic = useRef(false);
+
     return (
         <>
             <TileLayer
@@ -166,9 +204,10 @@ function MapContent({
                 carparks={carparks}
                 selectedCarparkId={selectedCarparkId}
                 userLocation={userLocation}
+                isProgrammatic={isProgrammatic}
             />
 
-            {onMapCenter && <MapMoveDetector onMapCenter={onMapCenter} />}
+            {onMapCenter && <MapMoveDetector onMapCenter={onMapCenter} isProgrammatic={isProgrammatic} />}
 
             {/* User location accuracy circle */}
             {(() => {
