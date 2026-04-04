@@ -252,7 +252,7 @@ export function ResultsPage() {
                     </button>
                 </div>
                 {locationError && (
-                    <p className="text-xs text-red-600 mt-1">{locationError}</p>
+                    <p className="text-xs text-red-600 mt-1" role="alert" aria-live="polite">{locationError}</p>
                 )}
 
                 {/* Radius Pills */}
