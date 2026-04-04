@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router';
-import { ArrowLeft, Filter, Navigation, X } from 'lucide-react';
+import { ArrowLeft, MapPin, Navigation, RefreshCw, X } from 'lucide-react';
 import { getUserLocation, GeolocationError } from '../../api/geolocation';
 import { CarparkCard } from '../components/carpark-card';
 import { CarparkMap } from '../components/carpark-map';
@@ -248,7 +248,7 @@ export function ResultsPage() {
                         className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
                         title="Refresh"
                     >
-                        <Filter className="w-5 h-5 text-gray-700" />
+                        <RefreshCw className="w-5 h-5 text-gray-700" />
                     </button>
                 </div>
                 {locationError && (
@@ -322,7 +322,7 @@ export function ResultsPage() {
                         ) : carparks.length === 0 ? (
                             <div className="text-center py-12">
                                 <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                                    <Filter className="w-8 h-8 text-gray-400" />
+                                    <MapPin className="w-8 h-8 text-gray-400" />
                                 </div>
                                 <h3 className="text-lg font-semibold text-gray-900 mb-2">
                                     No carparks found
@@ -382,7 +382,7 @@ export function ResultsPage() {
                         carparks={carparks}
                         selectedCarparkId={selectedCarpark}
                         onPinClick={handleMapPinClick}
-                        userLocation={coordsFromParams}
+                        userLocation={userAccuracy !== null ? coordsFromParams : null}
                         userAccuracy={userAccuracy ?? undefined}
                         onMapCenter={(lat, lng) => setMapCenter({ lat, lng })}
                     />
