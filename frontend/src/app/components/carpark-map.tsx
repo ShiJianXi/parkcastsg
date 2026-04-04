@@ -147,18 +147,24 @@ function MapContent({
             />
 
             {/* User location accuracy circle */}
-            {userLocation && Number.isFinite(userAccuracy) && (userAccuracy as number) > 0 && showAccuracyCircle && (
-                <Circle
-                    center={[userLocation.lat, userLocation.lng]}
-                    radius={userAccuracy}
-                    pathOptions={{
-                        color: '#1A56DB',
-                        fillColor: '#1A56DB',
-                        fillOpacity: 0.15,
-                        weight: 1.5,
-                    }}
-                />
-            )}
+            {(() => {
+                const accuracy: number | null =
+                    typeof userAccuracy === 'number' && Number.isFinite(userAccuracy) && userAccuracy > 0
+                        ? userAccuracy
+                        : null;
+                return userLocation && accuracy !== null && showAccuracyCircle ? (
+                    <Circle
+                        center={[userLocation.lat, userLocation.lng]}
+                        radius={accuracy}
+                        pathOptions={{
+                            color: '#1A56DB',
+                            fillColor: '#1A56DB',
+                            fillOpacity: 0.15,
+                            weight: 1.5,
+                        }}
+                    />
+                ) : null;
+            })()}
 
             {/* User location marker */}
             {userLocation && (
