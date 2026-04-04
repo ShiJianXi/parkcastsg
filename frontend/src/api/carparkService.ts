@@ -1,4 +1,4 @@
-import type { Carpark, AvailabilityLevel } from '../app/data/carparks';
+import type { Carpark, AvailabilityLevel, VehicleType } from '../app/data/carparks';
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8000';
 
@@ -26,9 +26,10 @@ export interface NearbyCarpark {
 export async function getNearbyCarparks(
     lat: number,
     lng: number,
-    radius: number
+    radius: number,
+    vehicleType: VehicleType = 'car'
 ): Promise<NearbyCarpark[]> {
-    const url = `${API_BASE}/api/v1/carparks/nearby?lat=${lat}&lng=${lng}&radius=${radius}`;
+    const url = `${API_BASE}/api/v1/carparks/nearby?lat=${lat}&lng=${lng}&radius=${radius}&vehicle_type=${vehicleType}`;
     const res = await fetch(url);
     if (!res.ok) {
         throw new Error(`Carpark API error ${res.status}`);
@@ -36,10 +37,10 @@ export async function getNearbyCarparks(
     return res.json();
 }
 
-export async function getCarparkById(id: string, lat?: number, lng?: number): Promise<NearbyCarpark> {
-    let url = `${API_BASE}/api/v1/carparks/${id}`;
+export async function getCarparkById(id: string, lat?: number, lng?: number, vehicleType: VehicleType = 'car'): Promise<NearbyCarpark> {
+    let url = `${API_BASE}/api/v1/carparks/${id}?vehicle_type=${vehicleType}`;
     if (lat !== undefined && lng !== undefined) {
-        url += `?lat=${lat}&lng=${lng}`;
+        url += `&lat=${lat}&lng=${lng}`;
     }
     
     const res = await fetch(url);

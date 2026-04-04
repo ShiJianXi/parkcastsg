@@ -3,7 +3,7 @@ import { useNavigate, useParams, useSearchParams } from 'react-router';
 import { ArrowLeft, Navigation, Heart, Bell, Cloud, Sun, CloudRain } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { PremiumModal } from '../components/premium-modal';
-import { getAvailabilityColor, type Carpark } from '../data/carparks';
+import { getAvailabilityColor, type Carpark, type VehicleType } from '../data/carparks';
 import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Cell } from 'recharts';
 import { getCarparkById, transformCarpark } from '../../api/carparkService';
 import { getWeatherForecast, type WeatherData } from '../../api/weatherService';
@@ -32,6 +32,9 @@ export function CarparkDetailPage() {
             try {
                 const queryLat = searchParams.get('lat');
                 const queryLng = searchParams.get('lng');
+                const queryVehicleType = searchParams.get('vehicle_type');
+                const vehicleType: VehicleType =
+                    queryVehicleType === 'motorcycle' ? 'motorcycle' : 'car';
 
                 let lat: number | undefined;
                 let lng: number | undefined;
@@ -45,7 +48,7 @@ export function CarparkDetailPage() {
                         lng = parsedLng;
                     }
                 }
-                const rawData = await getCarparkById(id, lat, lng);
+                const rawData = await getCarparkById(id, lat, lng, vehicleType);
                 const rawWeather = await getWeatherForecast(rawData.lat, rawData.lng).catch(() => null);
 
                 if (isMounted) {

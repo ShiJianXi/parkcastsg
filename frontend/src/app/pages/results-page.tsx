@@ -6,7 +6,7 @@ import { CarparkMap } from '../components/carpark-map';
 import { FilterChips } from '../components/filter-chips';
 import { WeatherBanner } from '../components/weather-banner';
 import { LoadingSkeleton } from '../components/loading-skeleton';
-import { sortCarparks, filterShelteredCarparks, type Carpark } from '../data/carparks';
+import { sortCarparks, filterShelteredCarparks, type Carpark, type VehicleType } from '../data/carparks';
 import { geocodeQuery } from '../../api/geocode';
 import { getNearbyCarparks, transformCarpark } from '../../api/carparkService';
 import { getWeatherForecast, type WeatherData } from '../../api/weatherService';
@@ -21,6 +21,7 @@ export function ResultsPage() {
     const [sortBy, setSortBy] = useState<'recommended' | 'cheapest' | 'closest' | 'available'>(
         'recommended'
     );
+    const [vehicleType, setVehicleType] = useState<VehicleType>('car');
     const [rainMode, setRainMode] = useState(false);
     const [showWeatherBanner, setShowWeatherBanner] = useState(false);
     const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
@@ -79,7 +80,7 @@ export function ResultsPage() {
             if (cancelRef.current) return;
 
             // 2. Fetch nearby carparks from the backend
-            const raw = await getNearbyCarparks(coords.lat, coords.lng, radius);
+            const raw = await getNearbyCarparks(coords.lat, coords.lng, radius, vehicleType);
             if (cancelRef.current) return;
 
             // 3. Transform backend shape → frontend Carpark type
@@ -133,7 +134,7 @@ export function ResultsPage() {
             cancelRef.current = true;
         };
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [destination, latParam, lngParam, radius]);
+    }, [destination, latParam, lngParam, radius, vehicleType]);
 
     // Re-apply filters/sort without re-fetching from the network
     useEffect(() => {
@@ -153,9 +154,9 @@ export function ResultsPage() {
     };
 
     const handleViewDetails = (id: string) => {
-        let url = `/carpark/${id}`;
+        let url = `/carpark/${id}?vehicle_type=${vehicleType}`;
         if (searchCoords) {
-            url += `?lat=${searchCoords.lat}&lng=${searchCoords.lng}`;
+            url += `&lat=${searchCoords.lat}&lng=${searchCoords.lng}`;
         }
         navigate(url);
     };
@@ -244,8 +245,10 @@ export function ResultsPage() {
                 <FilterChips
                     selectedFilter={sortBy}
                     rainMode={rainMode}
+                    vehicleType={vehicleType}
                     onFilterChange={setSortBy}
                     onRainModeToggle={() => setRainMode(!rainMode)}
+                    onVehicleTypeChange={setVehicleType}
                 />
             </div>
 

@@ -1,5 +1,7 @@
 export type AvailabilityLevel = 'high' | 'moderate' | 'low' | 'full';
 
+export type VehicleType = 'car' | 'motorcycle';
+
 export interface Carpark {
     id: string;
     name: string;
