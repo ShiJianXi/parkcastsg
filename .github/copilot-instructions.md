@@ -2,7 +2,9 @@
 
 ## Project Overview
 
-ParkCastSG is a real-time Singapore HDB carpark finder. Users search by destination or postal code to view live carpark availability on an interactive map. It integrates three public Singapore government APIs (no API keys required): data.gov.sg for live carpark lots, OneMap for geocoding, and NEA for 2-hour weather forecasts.
+ParkCastSG is a real-time Singapore carpark finder. Users search by destination or postal code to view live carpark availability on an interactive map. It integrates three public Singapore government APIs (no API keys required): data.gov.sg for live HDB carpark lots, OneMap for geocoding, and NEA for 2-hour weather forecasts.
+
+> **Planned expansion**: LTA DataMall will be integrated to include non-HDB (e.g. private/commercial) carparks in addition to the existing HDB dataset.
 
 ## Architecture
 
@@ -62,7 +64,7 @@ Local dev defaults to `http://localhost:5173` when `CORS_ALLOW_ORIGINS` is unset
 - Python 3.12+, FastAPI 0.115, Uvicorn
 - `httpx` for async HTTP calls to external APIs
 - `python-dotenv` for environment variables
-- No database — static carpark data is loaded from CSV files at startup
+- No database currently — static carpark data is loaded from CSV files at startup. **Amazon RDS integration is planned**; when it lands, carpark metadata will be served from the database instead of CSVs.
 
 ## Key Conventions
 

@@ -213,6 +213,10 @@ HTTPS is required at the CloudFront layer to enable the browser Geolocation API.
 - **Frontend**: https://dmxr5wa316ehu.cloudfront.net
 - **API docs (Swagger UI)**: https://dmxr5wa316ehu.cloudfront.net/docs
 
+> **Legacy direct-access URLs (for reference)**
+> - Backend (Elastic Beanstalk): http://parkcast-api-env.eba-9ixmryjr.ap-southeast-1.elasticbeanstalk.com/docs
+> - These bypass CloudFront and should not be used in production; they are listed here for debugging purposes only.
+
 ---
 
 ## API Endpoints
