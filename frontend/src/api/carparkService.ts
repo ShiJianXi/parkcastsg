@@ -94,6 +94,7 @@ export function transformCarpark(raw: NearbyCarpark): Carpark {
         availabilityLevel: crowdToAvailability(raw.crowd_level),
         walkingMinutes: distanceToWalkingMinutes(raw.distance),
         hourlyRate: 0.60, // HDB standard car rate — can be enriched later TODO: will change this to dynamic if needed in the future
+        motorcycleRate: 0.65, // HDB standard motorcycle per-entry rate
         isSheltered: raw.is_sheltered,
         distance: raw.distance,
         nightParking: raw.night_parking,

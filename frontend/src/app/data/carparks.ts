@@ -17,6 +17,7 @@ export interface Carpark {
     availabilityLevel: AvailabilityLevel;
     walkingMinutes: number;
     hourlyRate: number;
+    motorcycleRate?: number; // per-entry rate for motorcycles
     weekendRate?: number;
     isSheltered: boolean;
     isRecommended?: boolean;

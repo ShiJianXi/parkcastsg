@@ -269,10 +269,12 @@ export function CarparkDetailPage() {
                         <div className="grid grid-cols-2 gap-4 mb-4">
                             <div>
                                 <p className="text-sm text-gray-600 mb-1">
-                                    {vehicleType === 'motorcycle' ? 'Motorcycle rate' : 'Weekday (Car)'}
+                                    {vehicleType === 'motorcycle' ? 'Motorcycle rate' : 'Car rate'}
                                 </p>
                                 <p className="text-xl font-semibold text-gray-900">
-                                    {vehicleType === 'motorcycle' ? '~$0.65/entry' : `$${carpark.hourlyRate.toFixed(2)}/hr`}
+                                    {vehicleType === 'motorcycle'
+                                        ? `~$${(carpark.motorcycleRate ?? 0.65).toFixed(2)}/entry`
+                                        : `$${carpark.hourlyRate.toFixed(2)}/hr`}
                                 </p>
                             </div>
                             <div>
@@ -311,7 +313,7 @@ export function CarparkDetailPage() {
                                 <p className="text-sm text-gray-600">Estimated cost</p>
                                 <div className="flex justify-between text-sm">
                                     <span className="text-gray-600">Per entry</span>
-                                    <span className="font-medium text-gray-900">~$0.65</span>
+                                    <span className="font-medium text-gray-900">~${(carpark.motorcycleRate ?? 0.65).toFixed(2)}</span>
                                 </div>
                             </div>
                         )}

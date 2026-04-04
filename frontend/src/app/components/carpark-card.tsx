@@ -1,10 +1,6 @@
 import { MapPin, CloudRain } from 'lucide-react';
 import { type Carpark, type VehicleType, getAvailabilityColor, getAvailabilityText } from '../data/carparks';
 
-// HDB standard short-term rates (approximate)
-const CAR_HOURLY_RATE = 0.60;      // $0.60 per 30 min ≈ $0.60/hr display
-const MOTORCYCLE_DAILY_RATE = 0.65; // $0.65 per entry/day
-
 interface CarparkCardProps {
     carpark: Carpark;
     isSelected: boolean;
@@ -23,8 +19,8 @@ export function CarparkCard({ carpark, isSelected, showRainIcon, vehicleType, on
 
     const priceLabel =
         vehicleType === 'motorcycle'
-            ? `~$${MOTORCYCLE_DAILY_RATE.toFixed(2)}/entry`
-            : `~$${CAR_HOURLY_RATE.toFixed(2)}/hr`;
+            ? `~$${(carpark.motorcycleRate ?? 0.65).toFixed(2)}/entry`
+            : `~$${carpark.hourlyRate.toFixed(2)}/hr`;
 
     return (
         <div
