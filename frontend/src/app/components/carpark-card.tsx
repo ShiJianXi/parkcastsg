@@ -1,5 +1,5 @@
 import { MapPin, CloudRain } from 'lucide-react';
-import { type Carpark, getAvailabilityColor, getAvailabilityText } from '../data/carparks';
+import { type Carpark, getAvailabilityColor, getAvailabilityText, formatCarparkType } from '../data/carparks';
 
 interface CarparkCardProps {
     carpark: Carpark;
@@ -75,7 +75,7 @@ export function CarparkCard({ carpark, isSelected, showRainIcon, onClick, onView
                     {carpark.isRecommended && (
                         <div className="mt-2 pt-2 border-t border-gray-100">
                             <p className="text-xs text-gray-600">
-                                High availability · {carpark.isSheltered ? 'Sheltered' : 'Open-air'} · $
+                                High availability · {carpark.isSheltered ? 'Sheltered' : formatCarparkType(carpark.carparkType)} · $
                                 {carpark.hourlyRate.toFixed(2)}/hr
                             </p>
                         </div>

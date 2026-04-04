@@ -17,6 +17,7 @@ export interface NearbyCarpark {
     is_sheltered: boolean;
     distance: number; // metres
     night_parking: boolean;
+    car_park_type: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -86,6 +87,7 @@ export function transformCarpark(raw: NearbyCarpark): Carpark {
         walkingMinutes: distanceToWalkingMinutes(raw.distance),
         hourlyRate: 0.60, // HDB standard rate — can be enriched later TODO: will change this to dynamic if needed in the future
         isSheltered: raw.is_sheltered,
+        carparkType: raw.car_park_type,
         distance: raw.distance,
         nightParking: raw.night_parking,
         isRecommended: raw.available_lots > 10 && raw.is_sheltered,
