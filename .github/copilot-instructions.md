@@ -61,7 +61,7 @@ Local dev defaults to `http://localhost:5173` when `CORS_ALLOW_ORIGINS` is unset
 - MUI v7 + Radix UI for components; `lucide-react` for icons
 
 ### Backend
-- Python 3.12+, FastAPI 0.115, Uvicorn
+- Python 3.11+, FastAPI 0.115, Uvicorn
 - `httpx` for async HTTP calls to external APIs
 - `python-dotenv` for environment variables
 - No database currently — static carpark data is loaded from CSV files at startup. **Amazon RDS integration is planned**; when it lands, carpark metadata will be served from the database instead of CSVs.
@@ -69,8 +69,8 @@ Local dev defaults to `http://localhost:5173` when `CORS_ALLOW_ORIGINS` is unset
 ## Key Conventions
 
 ### Backend (Python)
-- All endpoints are `async def`
-- Pydantic models for all request/response schemas; use `from __future__ import annotations` at the top of every module
+- Prefer `async def` endpoints for I/O-bound handlers; simple endpoints such as health checks may remain synchronous
+- Use Pydantic models for all request/response schemas; use `from __future__ import annotations` where needed, especially in typed modules
 - Haversine distance is computed inline using the standard `math` library — do not add a geospatial dependency
 - `CARPARK_LOOKUP` in `backend/app/data/carpark_lookup.py` is loaded once at import time into a module-level dict; never reload it per request
 - Raise `HTTPException(status_code=502, ...)` for upstream API failures (data.gov.sg, NEA)
