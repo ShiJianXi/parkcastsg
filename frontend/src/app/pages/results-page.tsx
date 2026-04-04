@@ -316,6 +316,7 @@ export function ResultsPage() {
                                         carpark={carpark}
                                         isSelected={selectedCarpark === carpark.id}
                                         showRainIcon={rainMode}
+                                        vehicleType={vehicleType}
                                         onClick={() => handleCarparkClick(carpark.id)}
                                         onViewDetails={() => handleViewDetails(carpark.id)}
                                     />

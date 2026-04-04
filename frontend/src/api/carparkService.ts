@@ -13,6 +13,10 @@ export interface NearbyCarpark {
     lng: number;
     available_lots: number;
     total_lots: number;
+    car_lots_available: number;
+    car_lots_total: number;
+    motorcycle_lots_available: number;
+    motorcycle_lots_total: number;
     crowd_level: 'low' | 'medium' | 'high' | 'full';
     is_sheltered: boolean;
     distance: number; // metres
@@ -83,9 +87,13 @@ export function transformCarpark(raw: NearbyCarpark): Carpark {
         lng: raw.lng,
         availableLots: raw.available_lots,
         totalLots: raw.total_lots,
+        carLotsAvailable: raw.car_lots_available,
+        carLotsTotal: raw.car_lots_total,
+        motorcycleLotsAvailable: raw.motorcycle_lots_available,
+        motorcycleLotsTotal: raw.motorcycle_lots_total,
         availabilityLevel: crowdToAvailability(raw.crowd_level),
         walkingMinutes: distanceToWalkingMinutes(raw.distance),
-        hourlyRate: 0.60, // HDB standard rate — can be enriched later TODO: will change this to dynamic if needed in the future
+        hourlyRate: 0.60, // HDB standard car rate — can be enriched later TODO: will change this to dynamic if needed in the future
         isSheltered: raw.is_sheltered,
         distance: raw.distance,
         nightParking: raw.night_parking,

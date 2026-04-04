@@ -1,17 +1,30 @@
 import { MapPin, CloudRain } from 'lucide-react';
-import { type Carpark, getAvailabilityColor, getAvailabilityText } from '../data/carparks';
+import { type Carpark, type VehicleType, getAvailabilityColor, getAvailabilityText } from '../data/carparks';
+
+// HDB standard short-term rates (approximate)
+const CAR_HOURLY_RATE = 0.60;      // $0.60 per 30 min ≈ $0.60/hr display
+const MOTORCYCLE_DAILY_RATE = 0.65; // $0.65 per entry/day
 
 interface CarparkCardProps {
     carpark: Carpark;
     isSelected: boolean;
     showRainIcon: boolean;
+    vehicleType: VehicleType;
     onClick: () => void;
     onViewDetails?: () => void;
 }
 
-export function CarparkCard({ carpark, isSelected, showRainIcon, onClick, onViewDetails }: CarparkCardProps) {
+export function CarparkCard({ carpark, isSelected, showRainIcon, vehicleType, onClick, onViewDetails }: CarparkCardProps) {
     const availabilityColor = getAvailabilityColor(carpark.availabilityLevel);
     const availabilityText = getAvailabilityText(carpark);
+
+    const carLots = carpark.carLotsAvailable ?? 0;
+    const motoLots = carpark.motorcycleLotsAvailable ?? 0;
+
+    const priceLabel =
+        vehicleType === 'motorcycle'
+            ? `~$${MOTORCYCLE_DAILY_RATE.toFixed(2)}/entry`
+            : `~$${CAR_HOURLY_RATE.toFixed(2)}/hr`;
 
     return (
         <div
@@ -44,9 +57,20 @@ export function CarparkCard({ carpark, isSelected, showRainIcon, onClick, onView
                         <span className="truncate">{carpark.address}</span>
                     </div>
 
+                    {/* Split Lot Availability */}
+                    <div className="flex items-center gap-3 mb-2">
+                        <span className={`text-sm font-medium ${vehicleType === 'car' ? 'text-gray-900' : 'text-gray-500'}`}>
+                            🚗 {carLots} lots
+                        </span>
+                        <span className="text-gray-300">|</span>
+                        <span className={`text-sm font-medium ${vehicleType === 'motorcycle' ? 'text-gray-900' : 'text-gray-500'}`}>
+                            🏍️ {motoLots} lots
+                        </span>
+                    </div>
+
                     {/* Info Row */}
                     <div className="flex items-center gap-4 flex-wrap">
-                        {/* Availability */}
+                        {/* Crowd Level for selected type */}
                         <div className="flex items-center gap-1.5">
                             <div
                                 className="w-2 h-2 rounded-full"
@@ -58,9 +82,9 @@ export function CarparkCard({ carpark, isSelected, showRainIcon, onClick, onView
                         {/* Walking Distance */}
                         <span className="text-sm text-gray-600">{carpark.walkingMinutes} min walk</span>
 
-                        {/* Price */}
+                        {/* Price (varies by vehicle type) */}
                         <span className="text-sm font-medium text-gray-900">
-                            ~${carpark.hourlyRate.toFixed(2)}/hr (Might not be accurate as of now)
+                            {priceLabel} <span className="text-xs text-gray-400">(est.)</span>
                         </span>
 
                         {/* Rain Icon */}
@@ -75,8 +99,7 @@ export function CarparkCard({ carpark, isSelected, showRainIcon, onClick, onView
                     {carpark.isRecommended && (
                         <div className="mt-2 pt-2 border-t border-gray-100">
                             <p className="text-xs text-gray-600">
-                                High availability · {carpark.isSheltered ? 'Sheltered' : 'Open-air'} · $
-                                {carpark.hourlyRate.toFixed(2)}/hr
+                                High availability · {carpark.isSheltered ? 'Sheltered' : 'Open-air'} · {priceLabel}
                             </p>
                         </div>
                     )}

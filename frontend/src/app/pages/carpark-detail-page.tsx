@@ -21,6 +21,7 @@ export function CarparkDetailPage() {
     const [weather, setWeather] = useState<WeatherData | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    const [vehicleType, setVehicleType] = useState<VehicleType>('car');
 
     useEffect(() => {
         if (!id) return;
@@ -33,8 +34,9 @@ export function CarparkDetailPage() {
                 const queryLat = searchParams.get('lat');
                 const queryLng = searchParams.get('lng');
                 const queryVehicleType = searchParams.get('vehicle_type');
-                const vehicleType: VehicleType =
+                const resolvedVehicleType: VehicleType =
                     queryVehicleType === 'motorcycle' ? 'motorcycle' : 'car';
+                setVehicleType(resolvedVehicleType);
 
                 let lat: number | undefined;
                 let lng: number | undefined;
@@ -48,7 +50,7 @@ export function CarparkDetailPage() {
                         lng = parsedLng;
                     }
                 }
-                const rawData = await getCarparkById(id, lat, lng, vehicleType);
+                const rawData = await getCarparkById(id, lat, lng, resolvedVehicleType);
                 const rawWeather = await getWeatherForecast(rawData.lat, rawData.lng).catch(() => null);
 
                 if (isMounted) {
@@ -133,13 +135,6 @@ export function CarparkDetailPage() {
         }
     };
 
-    const crowdLevel =
-        carpark.availableLots / carpark.totalLots > 0.5
-            ? 'low'
-            : carpark.availableLots / carpark.totalLots > 0.2
-                ? 'moderate'
-                : 'high';
-
     return (
         <>
             <div className="min-h-screen bg-[#F9FAFB] pb-24">
@@ -179,17 +174,31 @@ export function CarparkDetailPage() {
                         <h2 className="text-base font-semibold text-gray-900 mb-4">
                             Current Availability
                         </h2>
-                        <div className="text-center mb-4">
-                            <div className="text-4xl font-semibold text-gray-900 mb-2">
-                                {carpark.availableLots} <span className="text-2xl text-gray-400">/ {carpark.totalLots}</span>
+
+                        {/* Split lot counts */}
+                        <div className="grid grid-cols-2 gap-3 mb-4">
+                            <div className={`rounded-lg p-3 text-center ${vehicleType === 'car' ? 'bg-blue-50 border border-blue-200' : 'bg-gray-50 border border-gray-100'}`}>
+                                <div className="text-2xl mb-1">🚗</div>
+                                <div className="text-2xl font-semibold text-gray-900">
+                                    {carpark.carLotsAvailable ?? 0}
+                                    <span className="text-sm font-normal text-gray-400"> / {carpark.carLotsTotal ?? 0}</span>
+                                </div>
+                                <p className="text-xs text-gray-500 mt-0.5">Car lots</p>
                             </div>
-                            <p className="text-gray-600">lots available</p>
+                            <div className={`rounded-lg p-3 text-center ${vehicleType === 'motorcycle' ? 'bg-blue-50 border border-blue-200' : 'bg-gray-50 border border-gray-100'}`}>
+                                <div className="text-2xl mb-1">🏍️</div>
+                                <div className="text-2xl font-semibold text-gray-900">
+                                    {carpark.motorcycleLotsAvailable ?? 0}
+                                    <span className="text-sm font-normal text-gray-400"> / {carpark.motorcycleLotsTotal ?? 0}</span>
+                                </div>
+                                <p className="text-xs text-gray-500 mt-0.5">Motorcycle lots</p>
+                            </div>
                         </div>
 
                         {/* Crowd Level Bar */}
                         <div className="space-y-2">
                             <div className="flex justify-between text-sm">
-                                <span className="text-gray-600">Crowd level</span>
+                                <span className="text-gray-600">Crowd level ({vehicleType === 'motorcycle' ? 'Motorcycle' : 'Car'})</span>
                                 <span
                                     className="font-medium capitalize"
                                     style={{ color: getAvailabilityColor(carpark.availabilityLevel) }}
@@ -259,9 +268,11 @@ export function CarparkDetailPage() {
 
                         <div className="grid grid-cols-2 gap-4 mb-4">
                             <div>
-                                <p className="text-sm text-gray-600 mb-1">Weekday</p>
+                                <p className="text-sm text-gray-600 mb-1">
+                                    {vehicleType === 'motorcycle' ? 'Motorcycle rate' : 'Weekday (Car)'}
+                                </p>
                                 <p className="text-xl font-semibold text-gray-900">
-                                    ${carpark.hourlyRate.toFixed(2)}/hr
+                                    {vehicleType === 'motorcycle' ? '~$0.65/entry' : `$${carpark.hourlyRate.toFixed(2)}/hr`}
                                 </p>
                             </div>
                             <div>
@@ -272,27 +283,38 @@ export function CarparkDetailPage() {
                             </div>
                         </div>
 
-                        <div className="border-t border-gray-200 pt-4 space-y-2">
-                            <p className="text-sm text-gray-600">Estimated cost</p>
-                            <div className="flex justify-between text-sm">
-                                <span className="text-gray-600">1 hour</span>
-                                <span className="font-medium text-gray-900">
-                                    ~${carpark.hourlyRate.toFixed(2)}
-                                </span>
+                        {vehicleType === 'car' && (
+                            <div className="border-t border-gray-200 pt-4 space-y-2">
+                                <p className="text-sm text-gray-600">Estimated cost</p>
+                                <div className="flex justify-between text-sm">
+                                    <span className="text-gray-600">1 hour</span>
+                                    <span className="font-medium text-gray-900">
+                                        ~${carpark.hourlyRate.toFixed(2)}
+                                    </span>
+                                </div>
+                                <div className="flex justify-between text-sm">
+                                    <span className="text-gray-600">2 hours</span>
+                                    <span className="font-medium text-gray-900">
+                                        ~${(carpark.hourlyRate * 2).toFixed(2)}
+                                    </span>
+                                </div>
+                                <div className="flex justify-between text-sm">
+                                    <span className="text-gray-600">4 hours</span>
+                                    <span className="font-medium text-gray-900">
+                                        ~${(carpark.hourlyRate * 4).toFixed(2)}
+                                    </span>
+                                </div>
                             </div>
-                            <div className="flex justify-between text-sm">
-                                <span className="text-gray-600">2 hours</span>
-                                <span className="font-medium text-gray-900">
-                                    ~${(carpark.hourlyRate * 2).toFixed(2)}
-                                </span>
+                        )}
+                        {vehicleType === 'motorcycle' && (
+                            <div className="border-t border-gray-200 pt-4 space-y-2">
+                                <p className="text-sm text-gray-600">Estimated cost</p>
+                                <div className="flex justify-between text-sm">
+                                    <span className="text-gray-600">Per entry</span>
+                                    <span className="font-medium text-gray-900">~$0.65</span>
+                                </div>
                             </div>
-                            <div className="flex justify-between text-sm">
-                                <span className="text-gray-600">4 hours</span>
-                                <span className="font-medium text-gray-900">
-                                    ~${(carpark.hourlyRate * 4).toFixed(2)}
-                                </span>
-                            </div>
-                        </div>
+                        )}
                     </div>
 
                     {/* Weather Section */}

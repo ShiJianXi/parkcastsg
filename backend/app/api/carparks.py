@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from math import atan2, cos, radians, sin, sqrt
+from typing import Literal
 
 import httpx
 from fastapi import APIRouter, HTTPException
@@ -24,8 +25,12 @@ class CarparkAvailability(BaseModel):
     address: str
     lat: float
     lng: float
-    available_lots: int
-    total_lots: int
+    available_lots: int       # lots for the requested vehicle type
+    total_lots: int           # total lots for the requested vehicle type
+    car_lots_available: int
+    car_lots_total: int
+    motorcycle_lots_available: int
+    motorcycle_lots_total: int
     crowd_level: str  # "low" | "medium" | "high" | "full"
     is_sheltered: bool
     distance: int  # metres from the query point
@@ -71,14 +76,19 @@ def _lot_type_for(vehicle_type: str) -> str:
 
 
 @router.get("/carparks/nearby", response_model=list[CarparkAvailability])
-async def get_nearby_carparks(lat: float, lng: float, radius: int = 500, vehicle_type: str = "car"):
+async def get_nearby_carparks(
+    lat: float,
+    lng: float,
+    radius: int = 500,
+    vehicle_type: Literal["car", "motorcycle"] = "car",
+):
     """
     Return HDB carparks within `radius` metres of (lat, lng) with live
     availability from data.gov.sg.
 
-    `vehicle_type` filters lot availability by type: ``car`` (default) uses lot
-    type **C**; ``motorcycle`` uses lot type **Y**.  Carparks that have no lots
-    of the requested type are excluded from the results.
+    Both car (lot type **C**) and motorcycle (lot type **Y**) lot counts are
+    always returned.  ``vehicle_type`` determines which type's counts are used
+    for ``available_lots``/``total_lots`` and the ``crowd_level`` calculation.
     """
     # 1. Fetch live availability snapshot
     try:
@@ -124,6 +134,7 @@ async def get_nearby_carparks(lat: float, lng: float, radius: int = 500, vehicle
             detail="Unexpected HDB API response: 'carpark_data' is not a list",
         )
     # 2. Filter by distance and enrich with static info
+    lot_type = _lot_type_for(vehicle_type)
     results: list[CarparkAvailability] = []
     for cp in carpark_data:
         cp_no: str = cp.get("carpark_number", "")
@@ -135,18 +146,25 @@ async def get_nearby_carparks(lat: float, lng: float, radius: int = 500, vehicle
         if dist > radius:
             continue
 
-        # Filter by requested vehicle lot type (C = Car, Y = Motorcycle)
-        lot_type = _lot_type_for(vehicle_type)
-        cp_info_list: list[dict] = [
-            x for x in cp.get("carpark_info", []) if x.get("lot_type") == lot_type
-        ]
-        # Skip carparks that have no lots for the requested vehicle type
-        if not cp_info_list:
+        # Compute lot counts by vehicle type
+        all_lots: list[dict] = cp.get("carpark_info", [])
+        car_lots = [x for x in all_lots if x.get("lot_type") == "C"]
+        moto_lots = [x for x in all_lots if x.get("lot_type") == "Y"]
+
+        car_available = sum(int(x.get("lots_available", 0)) for x in car_lots)
+        car_total = sum(int(x.get("total_lots", 0)) for x in car_lots)
+        moto_available = sum(int(x.get("lots_available", 0)) for x in moto_lots)
+        moto_total = sum(int(x.get("total_lots", 0)) for x in moto_lots)
+
+        # Skip carparks with no lot data at all
+        if car_total == 0 and moto_total == 0:
             continue
-        available = sum(int(x.get("lots_available", 0)) for x in cp_info_list)
-        total = sum(int(x.get("total_lots", 0)) for x in cp_info_list)
-        if total == 0:
-            continue
+
+        # available_lots / total_lots reflect the selected vehicle type
+        if lot_type == "Y":
+            available, total = moto_available, moto_total
+        else:
+            available, total = car_available, car_total
 
         results.append(
             CarparkAvailability(
@@ -157,6 +175,10 @@ async def get_nearby_carparks(lat: float, lng: float, radius: int = 500, vehicle
                 lng=info["lng"],
                 available_lots=available,
                 total_lots=total,
+                car_lots_available=car_available,
+                car_lots_total=car_total,
+                motorcycle_lots_available=moto_available,
+                motorcycle_lots_total=moto_total,
                 crowd_level=_crowd_level(available, total),
                 is_sheltered=info["is_sheltered"],
                 distance=round(dist),
@@ -170,12 +192,18 @@ async def get_nearby_carparks(lat: float, lng: float, radius: int = 500, vehicle
 
 
 @router.get("/carparks/{carpark_id}", response_model=CarparkAvailability)
-async def get_carpark(carpark_id: str, lat: float | None = None, lng: float | None = None, vehicle_type: str = "car"):
+async def get_carpark(
+    carpark_id: str,
+    lat: float | None = None,
+    lng: float | None = None,
+    vehicle_type: Literal["car", "motorcycle"] = "car",
+):
     """
     Return a single carpark's live availability by HDB carpark number.
 
-    `vehicle_type` filters lot availability by type: ``car`` (default) uses lot
-    type **C**; ``motorcycle`` uses lot type **Y**.
+    Both car and motorcycle lot counts are always returned.  ``vehicle_type``
+    determines which type's counts populate ``available_lots``/``total_lots``
+    and the ``crowd_level`` calculation.
     """
     info = CARPARK_LOOKUP.get(carpark_id.upper())
     if info is None:
@@ -198,13 +226,23 @@ async def get_carpark(carpark_id: str, lat: float | None = None, lng: float | No
             detail=f"HDB API did not return availability for carpark '{carpark_id.upper()}'",
         )
 
-    available = 0
-    total = 0
-    lot_type = _lot_type_for(vehicle_type)
+    car_available = 0
+    car_total = 0
+    moto_available = 0
+    moto_total = 0
     for lot in cp.get("carpark_info", []):
-        if lot.get("lot_type") == lot_type:
-            available += int(lot.get("lots_available", 0))
-            total += int(lot.get("total_lots", 0))
+        lot_type = lot.get("lot_type")
+        if lot_type == "C":
+            car_available += int(lot.get("lots_available", 0))
+            car_total += int(lot.get("total_lots", 0))
+        elif lot_type == "Y":
+            moto_available += int(lot.get("lots_available", 0))
+            moto_total += int(lot.get("total_lots", 0))
+
+    if vehicle_type == "motorcycle":
+        available, total = moto_available, moto_total
+    else:
+        available, total = car_available, car_total
 
     dist = 0
     if lat is not None and lng is not None:
@@ -218,6 +256,10 @@ async def get_carpark(carpark_id: str, lat: float | None = None, lng: float | No
         lng=info["lng"],
         available_lots=available,
         total_lots=total,
+        car_lots_available=car_available,
+        car_lots_total=car_total,
+        motorcycle_lots_available=moto_available,
+        motorcycle_lots_total=moto_total,
         crowd_level=_crowd_level(available, total),
         is_sheltered=info["is_sheltered"],
         distance=round(dist),
