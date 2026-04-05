@@ -281,7 +281,7 @@ export function ResultsPage() {
                                     No carparks found
                                 </h3>
                                 <p className="text-gray-500 text-sm mb-1">
-                                    This area may have limited HDB carparks.
+                                    No HDB or commercial carparks found nearby.
                                 </p>
                                 <p className="text-gray-500 text-sm mb-5">
                                     Try a wider search radius below.

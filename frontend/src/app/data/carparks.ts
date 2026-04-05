@@ -17,6 +17,7 @@ export interface Carpark {
     isRecommended?: boolean;
     distance: number; // in meters
     nightParking?: boolean;
+    source?: 'hdb' | 'lta'; // data source
     prediction?: {
         hour1: number;
         hour2: number;

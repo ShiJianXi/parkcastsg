@@ -18,6 +18,7 @@ export interface NearbyCarpark {
     distance: number; // metres
     night_parking: boolean;
     car_park_type: string;
+    source: 'hdb' | 'lta';
 }
 
 // ---------------------------------------------------------------------------
@@ -75,6 +76,7 @@ function distanceToWalkingMinutes(distanceMetres: number): number {
 }
 
 export function transformCarpark(raw: NearbyCarpark): Carpark {
+    const isLta = raw.source === 'lta';
     return {
         id: raw.id,
         name: raw.name,
@@ -85,11 +87,14 @@ export function transformCarpark(raw: NearbyCarpark): Carpark {
         totalLots: raw.total_lots,
         availabilityLevel: crowdToAvailability(raw.crowd_level),
         walkingMinutes: distanceToWalkingMinutes(raw.distance),
-        hourlyRate: 0.60, // HDB standard rate — can be enriched later TODO: will change this to dynamic if needed in the future
+        // LTA/URA rates vary per carpark; HDB uses the standard $0.60/hr rate
+        hourlyRate: isLta ? 0 : 0.60,
         isSheltered: raw.is_sheltered,
         carparkType: raw.car_park_type,
         distance: raw.distance,
         nightParking: raw.night_parking,
-        isRecommended: raw.available_lots > 10 && raw.is_sheltered,
+        source: raw.source,
+        // LTA carparks are not marked recommended because rate info is unknown
+        isRecommended: !isLta && raw.available_lots > 10 && raw.is_sheltered,
     };
 }

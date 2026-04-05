@@ -12,6 +12,7 @@ interface CarparkCardProps {
 export function CarparkCard({ carpark, isSelected, showRainIcon, onClick, onViewDetails }: CarparkCardProps) {
     const availabilityColor = getAvailabilityColor(carpark.availabilityLevel);
     const availabilityText = getAvailabilityText(carpark);
+    const isLta = carpark.source === 'lta';
 
     return (
         <div
@@ -34,6 +35,11 @@ export function CarparkCard({ carpark, isSelected, showRainIcon, onClick, onView
                         {carpark.isRecommended && (
                             <span className="px-2 py-0.5 bg-[#10B981] text-white text-xs font-medium rounded-full whitespace-nowrap">
                                 Recommended
+                            </span>
+                        )}
+                        {isLta && (
+                            <span className="px-2 py-0.5 bg-purple-100 text-purple-700 text-xs font-medium rounded-full whitespace-nowrap">
+                                Non-HDB
                             </span>
                         )}
                     </div>
@@ -60,7 +66,9 @@ export function CarparkCard({ carpark, isSelected, showRainIcon, onClick, onView
 
                         {/* Price */}
                         <span className="text-sm font-medium text-gray-900">
-                            ~${carpark.hourlyRate.toFixed(2)}/hr (Might not be accurate as of now)
+                            {isLta
+                                ? 'Rate varies'
+                                : `~$${carpark.hourlyRate.toFixed(2)}/hr (Might not be accurate as of now)`}
                         </span>
 
                         {/* Rain Icon */}

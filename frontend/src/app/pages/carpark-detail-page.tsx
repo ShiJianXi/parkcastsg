@@ -180,7 +180,10 @@ export function CarparkDetailPage() {
                         </h2>
                         <div className="text-center mb-4">
                             <div className="text-4xl font-semibold text-gray-900 mb-2">
-                                {carpark.availableLots} <span className="text-2xl text-gray-400">/ {carpark.totalLots}</span>
+                                {carpark.availableLots}{' '}
+                                {carpark.totalLots > 0 && (
+                                    <span className="text-2xl text-gray-400">/ {carpark.totalLots}</span>
+                                )}
                             </div>
                             <p className="text-gray-600">lots available</p>
                         </div>
@@ -211,7 +214,11 @@ export function CarparkDetailPage() {
                             </div>
                         </div>
 
-                        <p className="text-xs text-gray-500 mt-3">Live API from data.gov.sg</p>
+                        <p className="text-xs text-gray-500 mt-3">
+                            {carpark.source === 'lta'
+                                ? 'Live data · LTA DataMall (URA/LTA managed)'
+                                : 'Live API from data.gov.sg'}
+                        </p>
                     </div>
 
                     {/* Prediction Section */}
@@ -256,42 +263,54 @@ export function CarparkDetailPage() {
                     <div className="bg-white rounded-[12px] p-6 shadow-sm border border-gray-200">
                         <h2 className="text-base font-semibold text-gray-900 mb-4">Pricing</h2>
 
-                        <div className="grid grid-cols-2 gap-4 mb-4">
-                            <div>
-                                <p className="text-sm text-gray-600 mb-1">Weekday</p>
-                                <p className="text-xl font-semibold text-gray-900">
-                                    ${carpark.hourlyRate.toFixed(2)}/hr
+                        {carpark.source === 'lta' ? (
+                            <div className="p-3 bg-purple-50 rounded-lg border border-purple-100">
+                                <p className="text-sm text-purple-800 font-medium mb-1">Rate information unavailable</p>
+                                <p className="text-xs text-purple-600">
+                                    This is a non-HDB carpark managed by URA or LTA. Parking rates vary
+                                    — check signage on-site or the operator's website for current rates.
                                 </p>
                             </div>
-                            <div>
-                                <p className="text-sm text-gray-600 mb-1">Night Parking</p>
-                                <p className="text-lg font-medium text-gray-900">
-                                    {carpark.nightParking ? 'Available' : 'No'}
-                                </p>
-                            </div>
-                        </div>
+                        ) : (
+                            <>
+                                <div className="grid grid-cols-2 gap-4 mb-4">
+                                    <div>
+                                        <p className="text-sm text-gray-600 mb-1">Weekday</p>
+                                        <p className="text-xl font-semibold text-gray-900">
+                                            ${carpark.hourlyRate.toFixed(2)}/hr
+                                        </p>
+                                    </div>
+                                    <div>
+                                        <p className="text-sm text-gray-600 mb-1">Night Parking</p>
+                                        <p className="text-lg font-medium text-gray-900">
+                                            {carpark.nightParking ? 'Available' : 'No'}
+                                        </p>
+                                    </div>
+                                </div>
 
-                        <div className="border-t border-gray-200 pt-4 space-y-2">
-                            <p className="text-sm text-gray-600">Estimated cost</p>
-                            <div className="flex justify-between text-sm">
-                                <span className="text-gray-600">1 hour</span>
-                                <span className="font-medium text-gray-900">
-                                    ~${carpark.hourlyRate.toFixed(2)}
-                                </span>
-                            </div>
-                            <div className="flex justify-between text-sm">
-                                <span className="text-gray-600">2 hours</span>
-                                <span className="font-medium text-gray-900">
-                                    ~${(carpark.hourlyRate * 2).toFixed(2)}
-                                </span>
-                            </div>
-                            <div className="flex justify-between text-sm">
-                                <span className="text-gray-600">4 hours</span>
-                                <span className="font-medium text-gray-900">
-                                    ~${(carpark.hourlyRate * 4).toFixed(2)}
-                                </span>
-                            </div>
-                        </div>
+                                <div className="border-t border-gray-200 pt-4 space-y-2">
+                                    <p className="text-sm text-gray-600">Estimated cost</p>
+                                    <div className="flex justify-between text-sm">
+                                        <span className="text-gray-600">1 hour</span>
+                                        <span className="font-medium text-gray-900">
+                                            ~${carpark.hourlyRate.toFixed(2)}
+                                        </span>
+                                    </div>
+                                    <div className="flex justify-between text-sm">
+                                        <span className="text-gray-600">2 hours</span>
+                                        <span className="font-medium text-gray-900">
+                                            ~${(carpark.hourlyRate * 2).toFixed(2)}
+                                        </span>
+                                    </div>
+                                    <div className="flex justify-between text-sm">
+                                        <span className="text-gray-600">4 hours</span>
+                                        <span className="font-medium text-gray-900">
+                                            ~${(carpark.hourlyRate * 4).toFixed(2)}
+                                        </span>
+                                    </div>
+                                </div>
+                            </>
+                        )}
                     </div>
 
                     {/* Weather Section */}
