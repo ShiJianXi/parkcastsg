@@ -3,7 +3,7 @@ import { useNavigate, useParams, useSearchParams } from 'react-router';
 import { ArrowLeft, Navigation, Heart, Bell, Cloud, Sun, CloudRain } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { PremiumModal } from '../components/premium-modal';
-import { getAvailabilityColor, type Carpark } from '../data/carparks';
+import { getAvailabilityColor, formatCarparkType, type Carpark } from '../data/carparks';
 import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Cell } from 'recharts';
 import { getCarparkById, transformCarpark } from '../../api/carparkService';
 import { getWeatherForecast, type WeatherData } from '../../api/weatherService';
@@ -308,9 +308,7 @@ export function CarparkDetailPage() {
                                     Sheltered parking: {carpark.isSheltered ? 'Yes' : 'No'}
                                 </p>
                                 <p className="text-sm text-gray-600">
-                                    {carpark.isSheltered
-                                        ? 'Protected from rain and sun'
-                                        : 'Open-air parking'}
+                                    {formatCarparkType(carpark.carparkType)}
                                 </p>
                             </div>
                         </div>

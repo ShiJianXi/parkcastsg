@@ -31,12 +31,16 @@ export function ResultsPage() {
     const destination = searchParams.get('q') || 'My Location';
     const latParam = searchParams.get('lat');
     const lngParam = searchParams.get('lng');
+    const accuracyParam = searchParams.get('accuracy');
     const parsedLat = latParam !== null ? parseFloat(latParam) : NaN;
     const parsedLng = lngParam !== null ? parseFloat(lngParam) : NaN;
     const coordsFromParams =
         Number.isFinite(parsedLat) && Number.isFinite(parsedLng)
             ? { lat: parsedLat, lng: parsedLng }
             : null;
+    const parsedAccuracy = accuracyParam !== null ? parseFloat(accuracyParam) : NaN;
+    const userAccuracy = Number.isFinite(parsedAccuracy) && parsedAccuracy > 0 ? parsedAccuracy : null;
+
     const radiusParam = searchParams.get('radius');
     let radius = parseInt(radiusParam ?? '', 10);
     if (!Number.isFinite(radius) || radius <= 0) {
@@ -52,22 +56,27 @@ export function ResultsPage() {
         setError(null);
 
         try {
-            // 1. Geocode the destination to lat/lng
-            let coords = await geocodeQuery(destination);
-            if (cancelRef.current) return;
-            setSearchCoords(coords);
 
+            // 1. Prefer URL coordinates if present
+            let coords = coordsFromParams;
+
+            // 2. Otherwise geocode the destination text
             if (!coords) {
-                // 1. Geocode the destination to lat/lng
                 coords = await geocodeQuery(destination);
                 if (cancelRef.current) return;
-
-                if (!coords) {
-                    setError(`Could not find location "${destination}". Try a different address or postal code.`);
-                    setIsLoading(false);
-                    return;
-                }
             }
+
+            // 3. If still no coordinates, show error
+            if (!coords) {
+                setError(`Could not find location "${destination}". Try a different address or postal code.`);
+                setIsLoading(false);
+                return;
+            }
+
+            // 4. Save the coordinates for later use (e.g., detail page)
+            setSearchCoords(coords);
+
+            if (cancelRef.current) return;
 
             // 2. Fetch nearby carparks from the backend
             const raw = await getNearbyCarparks(coords.lat, coords.lng, radius);
@@ -120,7 +129,7 @@ export function ResultsPage() {
     useEffect(() => {
         fetchCarparks();
         return () => {
-            // Cancel stale requests on destination / radius change
+            // Cancel stale requests on destination / radius / coords change
             cancelRef.current = true;
         };
         // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -164,6 +173,16 @@ export function ResultsPage() {
         return `${mins} min${mins !== 1 ? 's' : ''} ago`;
     };
 
+    // Build a results URL preserving the current search type (coords vs text)
+    const buildResultsUrl = (newRadius: number): string => {
+        if (coordsFromParams) {
+            const accuracySegment =
+                userAccuracy !== null ? `&accuracy=${Math.round(userAccuracy)}` : '';
+            return `/results?lat=${coordsFromParams.lat}&lng=${coordsFromParams.lng}${accuracySegment}&radius=${newRadius}`;
+        }
+        return `/results?q=${encodeURIComponent(destination)}&radius=${newRadius}`;
+    };
+
     return (
         <div className="h-screen flex flex-col bg-[#F9FAFB]">
             {/* Sticky Header */}
@@ -177,7 +196,7 @@ export function ResultsPage() {
                     </button>
                     <div className="flex-1 min-w-0">
                         <h2 className="text-lg font-semibold text-gray-900 truncate">
-                            {destination}
+                            {coordsFromParams ? 'My Location' : destination}
                         </h2>
                     </div>
                     <button
@@ -193,17 +212,15 @@ export function ResultsPage() {
                 <div className="flex gap-2 mt-3">
                     {[300, 500, 1000, 2000].map((val) => {
                         const label = val >= 1000 ? `${val / 1000}km` : `${val}m`;
-                        const href = coordsFromParams
-                            ? `/results?lat=${coordsFromParams.lat}&lng=${coordsFromParams.lng}&radius=${val}`
-                            : `/results?q=${encodeURIComponent(destination)}&radius=${val}`;
                         return (
                             <button
                                 key={val}
-                                onClick={() => navigate(href)}
-                                className={`px-3 py-1.5 rounded-full text-xs font-medium ${radius === val
-                                    ? 'bg-[#1A56DB] text-white'
-                                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                                    }`}
+                                onClick={() => navigate(buildResultsUrl(val))}
+                                className={`px-3 py-1.5 rounded-full text-xs font-medium ${
+                                    radius === val
+                                        ? 'bg-[#1A56DB] text-white'
+                                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                                }`}
                             >
                                 {label}
                             </button>
@@ -272,13 +289,7 @@ export function ResultsPage() {
                                 <div className="flex flex-col gap-2 items-center">
                                     {radius < 2000 && (
                                         <button
-                                            onClick={() =>
-                                                navigate(
-                                                    coordsFromParams
-                                                        ? `/results?lat=${coordsFromParams.lat}&lng=${coordsFromParams.lng}&radius=2000`
-                                                        : `/results?q=${encodeURIComponent(destination)}&radius=2000`
-                                                )
-                                            }
+                                            onClick={() => navigate(buildResultsUrl(2000))}
                                             className="px-5 py-2.5 bg-[#1A56DB] text-white text-sm font-medium rounded-lg hover:bg-[#1444b8] transition-colors"
                                         >
                                             Expand to 2km
@@ -324,6 +335,8 @@ export function ResultsPage() {
                         carparks={carparks}
                         selectedCarparkId={selectedCarpark}
                         onPinClick={handleMapPinClick}
+                        userLocation={coordsFromParams}
+                        userAccuracy={userAccuracy ?? undefined}
                     />
                 </div>
             </div>

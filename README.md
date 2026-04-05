@@ -234,10 +234,26 @@ The app will be available at **http://localhost:5173**.
 
 ---
 
-## Deployed Backend API
+## Production Deployment
 
-The live backend API is available at:
-- **[http://parkcast-api-env.eba-9ixmryjr.ap-southeast-1.elasticbeanstalk.com/docs](http://parkcast-api-env.eba-9ixmryjr.ap-southeast-1.elasticbeanstalk.com/docs#/default/health_check_health_get)** → Interactive Swagger UI documentation
+The app is served via CloudFront at **https://dmxr5wa316ehu.cloudfront.net**, which routes traffic to two origins:
+
+| CloudFront path pattern | Origin | What it serves |
+|---|---|---|
+| `/api/*` | AWS Elastic Beanstalk | FastAPI backend (carparks, weather) |
+| `/health` | AWS Elastic Beanstalk | Health check |
+| `/docs*` | AWS Elastic Beanstalk | Swagger UI |
+| `/openapi.json` | AWS Elastic Beanstalk | OpenAPI schema |
+| `default (*)` | AWS S3 | React frontend (SPA) |
+
+HTTPS is required at the CloudFront layer to enable the browser Geolocation API.
+
+- **Frontend**: https://dmxr5wa316ehu.cloudfront.net
+- **API docs (Swagger UI)**: https://dmxr5wa316ehu.cloudfront.net/docs
+
+> **Legacy direct-access URLs (for reference)**
+> - Backend (Elastic Beanstalk): http://parkcast-api-env.eba-9ixmryjr.ap-southeast-1.elasticbeanstalk.com/docs
+> - These bypass CloudFront and should not be used in production; they are listed here for debugging purposes only.
 
 ---
 
@@ -292,4 +308,4 @@ The live backend API is available at:
 | `No module named uvicorn` | Install deps: `pip install -r requirements.txt` inside the venv |
 | `No carparks found` in CBD/Orchard | Switch to 2km radius — HDB carparks are sparse in commercial zones |
 | Frontend shows API error | Ensure backend is running on port 8000 and `VITE_API_BASE_URL` is set in `.env.local` |
-| CORS error in browser | Backend CORS is configured for `localhost:5173` — check `app/main.py` if using a different port |
+| CORS error in browser | Set `CORS_ALLOW_ORIGINS=https://dmxr5wa316ehu.cloudfront.net` in the Elastic Beanstalk environment variables |

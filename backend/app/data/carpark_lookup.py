@@ -14,6 +14,33 @@ from pathlib import Path
 
 _DATA_DIR = Path(__file__).parent
 
+# ---------------------------------------------------------------------------
+# Shelter-determination helpers — one per dataset source
+#
+# Each helper encapsulates the shelter logic for a specific dataset so that
+# adding a new source (e.g. LTA DataMall) only requires adding a new function
+# here, without touching the rest of the lookup pipeline.
+# ---------------------------------------------------------------------------
+
+# HDB: only pure surface carparks are unsheltered; every other type (multi-
+# storey, basement, covered, mechanised, surface/multi-storey) has a roof.
+_HDB_UNSHELTERED_TYPES: frozenset[str] = frozenset({"SURFACE CAR PARK"})
+
+
+def _is_sheltered_hdb(cp_type: str, basement: str) -> bool:
+    """Return True if this HDB carpark type is covered/sheltered.
+
+    The basement flag overrides the type check — a carpark flagged as
+    basement is always sheltered regardless of its declared type.
+
+    When LTA DataMall or another dataset is added, create a parallel
+    ``_is_sheltered_<source>`` function using that dataset's own type
+    vocabulary, then call it from the relevant loader.
+    """
+    if basement == "Y":
+        return True
+    return cp_type not in _HDB_UNSHELTERED_TYPES
+
 
 def _load() -> dict[str, dict]:
     # --- lat/lng lookup ---
@@ -35,16 +62,12 @@ def _load() -> dict[str, dict]:
 
             cp_type = row.get("car_park_type", "")
             basement = row.get("car_park_basement", "N")
-            is_sheltered = (
-                basement == "Y"
-                or cp_type in ("BASEMENT CAR PARK", "COVERED CAR PARK", "MECHANISED CAR PARK")
-            )
 
             lookup[cp_no] = {
                 **coords[cp_no],
                 # Title-case the ALL-CAPS HDB address
                 "address": row["address"].title(),
-                "is_sheltered": is_sheltered,
+                "is_sheltered": _is_sheltered_hdb(cp_type, basement),
                 "parking_system": row.get("type_of_parking_system", ""),
                 "night_parking": row.get("night_parking", "NO") == "YES",
                 "car_park_type": cp_type,
