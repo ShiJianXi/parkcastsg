@@ -36,6 +36,30 @@ interface PredictionRow {
   >
 }
 
+function PredictionSectionSkeleton() {
+  return (
+    <div className='rounded-lg border border-gray-200 p-4'>
+      <div className='mb-3'>
+        <div className='h-4 w-28 rounded bg-gray-200 animate-pulse' />
+        <div className='mt-2 h-3 w-48 rounded bg-gray-100 animate-pulse' />
+      </div>
+
+      <div className='grid grid-cols-3 gap-3'>
+        {[15, 30, 60].map((horizon) => (
+          <div
+            key={horizon}
+            className='rounded-lg bg-gray-50 px-3 py-4 text-center'
+          >
+            <div className='mx-auto h-3 w-14 rounded bg-gray-200 animate-pulse' />
+            <div className='mx-auto mt-3 h-8 w-12 rounded bg-gray-200 animate-pulse' />
+            <div className='mx-auto mt-2 h-3 w-20 rounded bg-gray-100 animate-pulse' />
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 export function CarparkDetailPage() {
   const navigate = useNavigate()
   const { id } = useParams()
@@ -48,6 +72,7 @@ export function CarparkDetailPage() {
   const [weather, setWeather] = useState<WeatherData | null>(null)
   const [prediction, setPrediction] =
     useState<CarparkPredictionResponse | null>(null)
+  const [predictionLoading, setPredictionLoading] = useState(true)
   const [predictionError, setPredictionError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -59,6 +84,7 @@ export function CarparkDetailPage() {
     const fetchCarparkDetails = async () => {
       setIsLoading(true)
       setError(null)
+      setPredictionLoading(true)
       setPredictionError(null)
       try {
         const queryLat = searchParams.get('lat')
@@ -89,21 +115,31 @@ export function CarparkDetailPage() {
           },
         )
 
+        // Await the carpark details
         const rawData = await rawDataPromise
-        const [rawWeather, rawPrediction] = await Promise.all([
-          getWeatherForecast(rawData.lat, rawData.lng).catch(() => null),
-          rawPredictionPromise,
-        ])
-
+        const rawWeatherPromise = getWeatherForecast(
+          rawData.lat,
+          rawData.lng,
+        ).catch(() => null)
         if (isMounted) {
           setCarpark(transformCarpark(rawData))
+        }
+
+        // Await the prediction and weather promises in parallel after we have the carpark location, so they can load while the user is viewing the details.
+        const [rawWeather, rawPrediction] = await Promise.all([
+          rawWeatherPromise,
+          rawPredictionPromise,
+        ])
+        if (isMounted) {
           setWeather(rawWeather)
           setPrediction(rawPrediction)
+          setPredictionLoading(false)
         }
       } catch (err) {
         if (isMounted) {
           setError('Failed to fetch carpark details. Please try again.')
           console.error(err)
+          setPredictionLoading(false)
         }
       } finally {
         if (isMounted) {
@@ -375,7 +411,9 @@ export function CarparkDetailPage() {
               </p>
             )}
 
-            {predictionError ? (
+            {predictionLoading ? (
+              <PredictionSectionSkeleton />
+            ) : predictionError ? (
               <div className='rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800'>
                 {predictionError}
               </div>

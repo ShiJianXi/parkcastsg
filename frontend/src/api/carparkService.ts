@@ -1,5 +1,4 @@
 import type { Carpark, AvailabilityLevel } from '../app/data/carparks'
-import sampleCarparkPredictionResponse from '../app/data/sample-carpark-prediction-response.json'
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8000'
 
@@ -81,19 +80,12 @@ export async function getCarparkById(
 export async function getCarparkPrediction(
   carparkNumber: string,
 ): Promise<CarparkPredictionResponse> {
-  // const url = `${API_BASE}/api/v1/carparks/${carparkNumber}/prediction`;
-  // const res = await fetch(url);
-  // if (!res.ok) {
-  //     throw new Error(`Prediction API error ${res.status}`);
-  // }
-  // return res.json();
-
-  // Temporary mock response for UI development until the backend prediction
-  // endpoint is finalized with the agreed response shape
-  return {
-    ...sampleCarparkPredictionResponse,
-    carpark_number: carparkNumber,
-  } as CarparkPredictionResponse
+  const url = `${API_BASE}/api/v1/carparks/${carparkNumber}/prediction`
+  const res = await fetch(url)
+  if (!res.ok) {
+    throw new Error(`Prediction API error ${res.status}`)
+  }
+  return res.json()
 }
 
 // ---------------------------------------------------------------------------
