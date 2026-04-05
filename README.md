@@ -4,6 +4,167 @@ Real-time Singapore carpark finder. Search by destination or postal code, view l
 
 ---
 
+## ML Prediction API Update
+
+Compared with the `main` branch, this branch adds a new machine-learning prediction capability to the backend.
+
+### What Was Added
+
+| Area | Update |
+|---|---|
+| New API | Added `GET /api/v1/carparks/{carpark_number}/prediction` |
+| Prediction models | Added bundled LightGBM models for `15`, `30`, and `60` minute horizons |
+| Model metadata | Added `feature_cols.pkl` and `categorical_cols.pkl` |
+| Static lookup data | Added `backend/app/data/static_carpark_mapping.csv` |
+| Backend config | Added DB port, SSL, CORS, environment-aware `.env` loading, and model path settings |
+| Deployment support | Updated `backend/Dockerfile` to install `libgomp1` for LightGBM runtime support |
+| Python deps | Added `pandas`, `joblib`, `lightgbm`, `scikit-learn`, and `psycopg2-binary` |
+
+### What The New Endpoint Does
+
+The frontend can send a request to:
+
+```text
+GET /api/v1/carparks/{carpark_number}/prediction
+```
+
+The backend will then:
+
+1. read the latest live lot records for the requested carpark from PostgreSQL
+2. look up static metadata from `static_carpark_mapping.csv`
+3. fetch the latest available weather record for the mapped area
+4. build model features from the current lot data, area, weather, timestamp, and coordinates
+5. run three prediction models for `15`, `30`, and `60` minute horizons
+6. return predictions grouped by horizon and by lot type
+
+### Response Format
+
+Example response:
+
+```json
+{
+  "carpark_number": "HE12",
+  "generated_at": "2026-04-05T12:34:56+08:00",
+  "predictions": [
+    {
+      "horizon_minutes": 15,
+      "by_lot_type": [
+        {
+          "lot_type": "C",
+          "predicted_available_lots": 123.0,
+          "predicted_occupancy_rate": 0.41
+        }
+      ]
+    },
+    {
+      "horizon_minutes": 30,
+      "by_lot_type": [
+        {
+          "lot_type": "C",
+          "predicted_available_lots": 118.0,
+          "predicted_occupancy_rate": 0.43
+        }
+      ]
+    },
+    {
+      "horizon_minutes": 60,
+      "by_lot_type": [
+        {
+          "lot_type": "C",
+          "predicted_available_lots": 110.0,
+          "predicted_occupancy_rate": 0.47
+        }
+      ]
+    }
+  ]
+}
+```
+
+### Error Handling
+
+The endpoint currently returns structured API errors through FastAPI `HTTPException`.
+
+Common cases include:
+
+| Status | Error code | Meaning |
+|---|---|---|
+| `404` | `MAPPING_NOT_FOUND` | No static mapping exists for the requested `carpark_number` |
+| `404` | `AVAILABILITY_NOT_FOUND` | No latest live availability row was found in PostgreSQL |
+| `404` | `WEATHER_NOT_FOUND` | No matching weather record was found for the mapped area |
+| `422` | `INSUFFICIENT_LOTS_INFO` | The returned lot rows are not valid enough for prediction |
+| `500` | `INTERNAL_PREDICTION_ERROR` | An unexpected internal prediction error occurred |
+
+Example error response:
+
+```json
+{
+  "detail": {
+    "error_code": "AVAILABILITY_NOT_FOUND",
+    "message": "No availability data found for this carpark.",
+    "carpark_number": "HE12"
+  }
+}
+```
+
+### Local Setup
+
+To run this feature locally:
+
+1. Download the RDS certificate bundle and place it under `backend/global-bundle.pem`:
+   `https://truststore.pki.rds.amazonaws.com/global/global-bundle.pem`
+2. Create a fresh Python environment and install dependencies:
+
+```bash
+cd backend
+python -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+```
+
+On Windows PowerShell:
+
+```powershell
+cd backend
+python -m venv venv
+.\venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+```
+
+3. Prepare a `.env` file under `backend/` similar to the following example:
+
+```env
+DB_HOST=your-rds-endpoint.amazonaws.com
+DB_PORT=5432
+DB_NAME=your_database_name
+DB_USER=your_database_user
+DB_PASS=your_database_password
+DB_SSL_MODE=verify-full
+CORS_ALLOW_ORIGINS=http://localhost:5173
+ENVIRONMENT=development
+```
+
+4. Start the backend with Uvicorn:
+
+```bash
+uvicorn app.main:app --reload
+```
+
+5. Open the local prediction endpoint:
+
+```text
+http://127.0.0.1:8000/api/v1/carparks/{carpark_number}/prediction
+```
+
+### AWS Elastic Beanstalk Deployment
+
+This backend has also been tested on AWS Elastic Beanstalk.
+
+- A new application named `ParkCast-ML-API-test` was used for deployment testing.
+- A saved Elastic Beanstalk configuration is available and can run the current backend successfully.
+- The updated Docker image includes `libgomp1`, which is required for the bundled LightGBM models at runtime.
+
+---
+
 ## Architecture Overview
 
 ```
@@ -196,10 +357,26 @@ The app will be available at **http://localhost:5173**.
 
 ---
 
-## Deployed Backend API
+## Production Deployment
 
-The live backend API is available at:
-- **[http://parkcast-api-env.eba-9ixmryjr.ap-southeast-1.elasticbeanstalk.com/docs](http://parkcast-api-env.eba-9ixmryjr.ap-southeast-1.elasticbeanstalk.com/docs#/default/health_check_health_get)** → Interactive Swagger UI documentation
+The app is served via CloudFront at **https://dmxr5wa316ehu.cloudfront.net**, which routes traffic to two origins:
+
+| CloudFront path pattern | Origin | What it serves |
+|---|---|---|
+| `/api/*` | AWS Elastic Beanstalk | FastAPI backend (carparks, weather) |
+| `/health` | AWS Elastic Beanstalk | Health check |
+| `/docs*` | AWS Elastic Beanstalk | Swagger UI |
+| `/openapi.json` | AWS Elastic Beanstalk | OpenAPI schema |
+| `default (*)` | AWS S3 | React frontend (SPA) |
+
+HTTPS is required at the CloudFront layer to enable the browser Geolocation API.
+
+- **Frontend**: https://dmxr5wa316ehu.cloudfront.net
+- **API docs (Swagger UI)**: https://dmxr5wa316ehu.cloudfront.net/docs
+
+> **Legacy direct-access URLs (for reference)**
+> - Backend (Elastic Beanstalk): http://parkcast-api-env.eba-9ixmryjr.ap-southeast-1.elasticbeanstalk.com/docs
+> - These bypass CloudFront and should not be used in production; they are listed here for debugging purposes only.
 
 ---
 
@@ -254,4 +431,4 @@ The live backend API is available at:
 | `No module named uvicorn` | Install deps: `pip install -r requirements.txt` inside the venv |
 | `No carparks found` in CBD/Orchard | Switch to 2km radius — HDB carparks are sparse in commercial zones |
 | Frontend shows API error | Ensure backend is running on port 8000 and `VITE_API_BASE_URL` is set in `.env.local` |
-| CORS error in browser | Backend CORS is configured for `localhost:5173` — check `app/main.py` if using a different port |
+| CORS error in browser | Set `CORS_ALLOW_ORIGINS=https://dmxr5wa316ehu.cloudfront.net` in the Elastic Beanstalk environment variables |

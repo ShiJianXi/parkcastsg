@@ -25,7 +25,9 @@ export function HomePage() {
     setLocationError(null)
     try {
       const coords = await getUserLocation()
-      navigate(`/results?lat=${coords.lat}&lng=${coords.lng}&radius=${radius}`)
+      navigate(
+        `/results?lat=${coords.lat}&lng=${coords.lng}&accuracy=${Math.round(coords.accuracy)}&radius=${radius}`,
+      )
     } catch (err) {
       if (err instanceof GeolocationError) {
         setLocationError(err.message)

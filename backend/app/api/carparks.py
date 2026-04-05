@@ -37,6 +37,7 @@ class CarparkAvailability(BaseModel):
     is_sheltered: bool
     distance: int  # metres from the query point
     night_parking: bool
+    car_park_type: str  # e.g. "MULTI-STOREY CAR PARK", "SURFACE CAR PARK"
 
 
 # ---------------------------------------------------------------------------
@@ -167,6 +168,7 @@ async def get_nearby_carparks(lat: float, lng: float, radius: int = 500):
                 is_sheltered=info["is_sheltered"],
                 distance=round(dist),
                 night_parking=info["night_parking"],
+                car_park_type=info.get("car_park_type", ""),
             )
         )
 
@@ -227,4 +229,5 @@ async def get_carpark(
         is_sheltered=info["is_sheltered"],
         distance=round(dist),
         night_parking=info["night_parking"],
+        car_park_type=info.get("car_park_type", ""),
     )

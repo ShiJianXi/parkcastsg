@@ -18,6 +18,7 @@ export interface Carpark {
     hourlyRate: number;
     weekendRate?: number;
     isSheltered: boolean;
+    carparkType?: string;
     isRecommended?: boolean;
     distance: number; // in meters
     nightParking?: boolean;
@@ -216,6 +217,21 @@ export function getAvailabilityColor(level: AvailabilityLevel): string {
         case 'full':
             return '#EF4444'; // Red
     }
+}
+
+const CARPARK_TYPE_LABELS: Record<string, string> = {
+    'SURFACE CAR PARK': 'Surface Carpark',
+    'MULTI-STOREY CAR PARK': 'Multi-Storey Carpark',
+    'BASEMENT CAR PARK': 'Basement Carpark',
+    'COVERED CAR PARK': 'Covered Carpark',
+    'MECHANISED CAR PARK': 'Mechanised Carpark',
+    'MECHANISED AND SURFACE CAR PARK': 'Mechanised & Surface Carpark',
+    'SURFACE/MULTI-STOREY CAR PARK': 'Surface / Multi-Storey Carpark',
+};
+
+export function formatCarparkType(raw?: string): string {
+    if (!raw) return 'Carpark';
+    return CARPARK_TYPE_LABELS[raw.toUpperCase()] ?? raw;
 }
 
 export function getAvailabilityText(carpark: Carpark): string {

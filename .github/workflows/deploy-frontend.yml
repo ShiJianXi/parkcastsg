@@ -42,3 +42,9 @@ jobs:
       - name: Deploy to AWS S3
         working-directory: ./frontend
         run: aws s3 sync dist/ s3://parkcast-sg-web-ui --delete
+
+      - name: Invalidate CloudFront Cache
+        run: |
+          aws cloudfront create-invalidation \
+            --distribution-id E1FO6KNKPX1BIP \
+            --paths "/index.html"

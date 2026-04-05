@@ -12,11 +12,15 @@ export class GeolocationError extends Error {
     }
 }
 
+export interface UserLocation extends Coordinates {
+    accuracy: number; // metres
+}
+
 /**
  * Request the device's current position using the browser Geolocation API.
- * Returns WGS84 { lat, lng } on success, or throws a GeolocationError on failure.
+ * Returns WGS84 { lat, lng, accuracy } on success, or throws a GeolocationError on failure.
  */
-export function getUserLocation(): Promise<Coordinates> {
+export function getUserLocation(): Promise<UserLocation> {
     return new Promise((resolve, reject) => {
         if (!navigator.geolocation) {
             reject(
@@ -33,6 +37,7 @@ export function getUserLocation(): Promise<Coordinates> {
                 resolve({
                     lat: position.coords.latitude,
                     lng: position.coords.longitude,
+                    accuracy: position.coords.accuracy,
                 });
             },
             (err) => {
