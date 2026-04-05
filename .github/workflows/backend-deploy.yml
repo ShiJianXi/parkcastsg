@@ -4,9 +4,6 @@ on:
   push:
     branches:
       - main
-      - preview/*
-      - feature/*
-      - copilot/*
   workflow_dispatch:
 
 permissions:
@@ -45,13 +42,21 @@ jobs:
             echo "env_name=preview-${BRANCH}" >> $GITHUB_OUTPUT
           fi
 
+      - name: Prepare EB deployment bundle (backend only)
+        run: |
+          mkdir deploy
+          cp -r backend/* deploy/
+          cp backend/Dockerfile deploy/
+
       - name: Initialize EB
+        working-directory: deploy
         run: |
           eb init parkcast-api \
             --platform "Docker" \
             --region ap-southeast-1
 
       - name: Create environment if missing
+        working-directory: deploy
         run: |
           ENV_NAME="${{ steps.env.outputs.env_name }}"
           EXISTS=$(aws elasticbeanstalk describe-environments \
@@ -68,10 +73,12 @@ jobs:
           fi
 
       - name: Select EB environment
+        working-directory: deploy
         run: |
           ENV_NAME="${{ steps.env.outputs.env_name }}"
           eb use "$ENV_NAME" || true
 
       - name: Deploy to Elastic Beanstalk
+        working-directory: deploy
         run: |
           eb deploy "${{ steps.env.outputs.env_name }}"
