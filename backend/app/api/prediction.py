@@ -42,6 +42,16 @@ STATIC_CARPARK_MAP: dict[str, dict[str, Any]] = {
 # ----------------------------
 # Helper functions
 # ----------------------------
+def api_error(status_code: int, error_code: str, message: str, carpark_number: str | None = None):
+    detail = {
+        "error_code": error_code,
+        "message": message,
+    }
+    if carpark_number is not None:
+        detail["carpark_number"] = carpark_number
+
+    raise HTTPException(status_code=status_code, detail=detail)
+
 def get_db_connection():
     return psycopg2.connect(**settings.db_config)
 
@@ -95,11 +105,14 @@ def predict_one(record: dict, model: Any) -> dict:
     X = preprocess_one_record(record)
     pred_lots = float(model.predict(X)[0])
 
-    # 暂时先做简单兜底；更完整异常策略下一步再统一收口
+    total_lots = record.get("total_lots", 0) or 0
+
     if pred_lots < 0:
         pred_lots = 0.0
 
-    total_lots = record.get("total_lots", 0) or 0
+    if total_lots > 0 and pred_lots > total_lots:
+        pred_lots = float(total_lots)
+
     if total_lots <= 0:
         pred_occ = 0.0
     else:
@@ -115,9 +128,11 @@ def predict_one(record: dict, model: Any) -> dict:
 def get_static_mapping(carpark_number: str) -> dict[str, Any]:
     mapping = STATIC_CARPARK_MAP.get(carpark_number)
     if not mapping:
-        raise HTTPException(
+        api_error(
             status_code=404,
-            detail=f"Static mapping not found for carpark_number={carpark_number}",
+            error_code="MAPPING_NOT_FOUND",
+            message="Static mapping not found for this carpark.",
+            carpark_number=carpark_number,
         )
     return mapping
 
@@ -144,9 +159,11 @@ def get_latest_carpark_rows(carpark_number: str) -> list[dict[str, Any]]:
         cur.close()
 
         if not rows:
-            raise HTTPException(
+            api_error(
                 status_code=404,
-                detail=f"No availability data found for carpark_number={carpark_number}",
+                error_code="AVAILABILITY_NOT_FOUND",
+                message="No availability data found for this carpark.",
+                carpark_number=carpark_number,
             )
 
         results = []
@@ -166,7 +183,7 @@ def get_latest_carpark_rows(carpark_number: str) -> list[dict[str, Any]]:
             conn.close()
 
 
-def get_weather_for_area(area: str, timestamp: datetime) -> str:
+def get_weather_for_area(area: str, timestamp: datetime, carpark_number: str | None = None) -> str:
     query = """
         SELECT forecast
         FROM weather_dynamic_full
@@ -185,9 +202,11 @@ def get_weather_for_area(area: str, timestamp: datetime) -> str:
         cur.close()
 
         if not row:
-            raise HTTPException(
+            api_error(
                 status_code=404,
-                detail=f"No weather data found for area={area} before timestamp={timestamp}",
+                error_code="WEATHER_NOT_FOUND",
+                message="No weather data found for this carpark area.",
+                carpark_number=carpark_number,
             )
 
         return row[0]
@@ -268,36 +287,48 @@ def predict_for_horizon(
 # ----------------------------
 @router.get("/carparks/{carpark_number}/prediction")
 def predict_carpark(carpark_number: str):
-    generated_at = datetime.now(ZoneInfo("Asia/Singapore"))
+    try:
+        generated_at = datetime.now(ZoneInfo("Asia/Singapore"))
 
-    mapping = get_static_mapping(carpark_number)
-    carpark_rows = get_latest_carpark_rows(carpark_number)
-    weather_used = get_weather_for_area(mapping["area"], generated_at)
+        mapping = get_static_mapping(carpark_number)
+        carpark_rows = get_latest_carpark_rows(carpark_number)
+        weather_used = get_weather_for_area(mapping["area"], generated_at, carpark_number=carpark_number)
 
-    valid_rows = [row for row in carpark_rows if not is_invalid_lot_row(row)]
+        valid_rows = [row for row in carpark_rows if not is_invalid_lot_row(row)]
 
-    # 更完整的异常分类下一步统一处理；这里先保底避免空预测列表
-    if not valid_rows:
-        raise HTTPException(
-            status_code=422,
-            detail=f"No valid lot rows available for prediction for carpark_number={carpark_number}",
+        if not valid_rows:
+            api_error(
+                status_code=422,
+                error_code="INSUFFICIENT_LOTS_INFO",
+                message="Lot information is insufficient for prediction.",
+                carpark_number=carpark_number,
+            )
+
+        predictions = []
+        for horizon_minutes in sorted(models_by_horizon.keys()):
+            model = models_by_horizon[horizon_minutes]
+            prediction_item = predict_for_horizon(
+                horizon_minutes=horizon_minutes,
+                model=model,
+                valid_rows=valid_rows,
+                mapping=mapping,
+                weather_used=weather_used,
+                timestamp_used=generated_at,
+            )
+            predictions.append(prediction_item)
+
+        return {
+            "carpark_number": carpark_number,
+            "generated_at": generated_at,
+            "predictions": predictions,
+        }
+
+    except HTTPException:
+        raise
+    except Exception:
+        api_error(
+            status_code=500,
+            error_code="INTERNAL_PREDICTION_ERROR",
+            message="An internal error occurred during prediction.",
+            carpark_number=carpark_number,
         )
-
-    predictions = []
-    for horizon_minutes in sorted(models_by_horizon.keys()):
-        model = models_by_horizon[horizon_minutes]
-        prediction_item = predict_for_horizon(
-            horizon_minutes=horizon_minutes,
-            model=model,
-            valid_rows=valid_rows,
-            mapping=mapping,
-            weather_used=weather_used,
-            timestamp_used=generated_at,
-        )
-        predictions.append(prediction_item)
-
-    return {
-        "carpark_number": carpark_number,
-        "generated_at": generated_at,
-        "predictions": predictions,
-    }
