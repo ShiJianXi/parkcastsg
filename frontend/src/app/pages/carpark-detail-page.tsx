@@ -3,6 +3,7 @@ import { useNavigate, useParams, useSearchParams } from 'react-router';
 import { ArrowLeft, Navigation, Heart, Bell, Cloud, Sun, CloudRain } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { PremiumModal } from '../components/premium-modal';
+import { NavigationChooserModal } from '../components/navigation-chooser-modal';
 import { getAvailabilityColor, formatCarparkType, type Carpark } from '../data/carparks';
 import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Cell } from 'recharts';
 import { getCarparkById, transformCarpark } from '../../api/carparkService';
@@ -14,6 +15,7 @@ export function CarparkDetailPage() {
     const { id } = useParams();
     const [searchParams] = useSearchParams();
     const [showPremiumModal, setShowPremiumModal] = useState(false);
+    const [showNavModal, setShowNavModal] = useState(false);
     const [isSaved, setIsSaved] = useState(false);
 
     // Dynamic states
@@ -337,7 +339,7 @@ export function CarparkDetailPage() {
             <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 px-4 py-4 shadow-lg">
                 <div className="max-w-2xl mx-auto flex gap-3">
                     <Button
-                        onClick={() => window.open(`https://maps.google.com/?q=${carpark.lat},${carpark.lng}`, '_blank')}
+                        onClick={() => setShowNavModal(true)}
                         className="flex-1 bg-[#1A56DB] hover:bg-[#1444b8] text-white rounded-lg py-6"
                     >
                         <Navigation className="w-4 h-4 mr-2" />
@@ -360,6 +362,15 @@ export function CarparkDetailPage() {
                     </Button>
                 </div>
             </div>
+
+            {/* Navigation Chooser Modal */}
+            <NavigationChooserModal
+                isOpen={showNavModal}
+                onClose={() => setShowNavModal(false)}
+                lat={carpark.lat}
+                lng={carpark.lng}
+                address={carpark.address}
+            />
 
             {/* Premium Modal */}
             <PremiumModal
