@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime
 from typing import Any
+from zoneinfo import ZoneInfo
 
 import joblib
 import pandas as pd
@@ -17,14 +18,17 @@ router = APIRouter(tags=["prediction"])
 # ----------------------------
 # Startup-time resources
 # ----------------------------
-model = joblib.load(settings.MODEL_FILE)
+models_by_horizon: dict[int, Any] = {
+    horizon: joblib.load(path)
+    for horizon, path in settings.MODEL_FILES.items()
+}
+
 feature_cols = joblib.load(settings.FEATURE_COLS_FILE)
 categorical_cols = joblib.load(settings.CATEGORICAL_COLS_FILE)
 
 static_mapping_df = pd.read_csv(settings.STATIC_CARPARK_MAPPING_FILE)
 static_mapping_df["carpark_number"] = static_mapping_df["carpark_number"].astype(str)
 
-# 转成 dict，查找更方便
 STATIC_CARPARK_MAP: dict[str, dict[str, Any]] = {
     row["carpark_number"]: {
         "area": row["area"],
@@ -87,9 +91,13 @@ def preprocess_one_record(record: dict) -> pd.DataFrame:
     return df
 
 
-def predict_one(record: dict) -> dict:
+def predict_one(record: dict, model: Any) -> dict:
     X = preprocess_one_record(record)
     pred_lots = float(model.predict(X)[0])
+
+    # 暂时先做简单兜底；更完整异常策略下一步再统一收口
+    if pred_lots < 0:
+        pred_lots = 0.0
 
     total_lots = record.get("total_lots", 0) or 0
     if total_lots <= 0:
@@ -203,79 +211,93 @@ def is_invalid_lot_row(row: dict[str, Any]) -> bool:
     return False
 
 
-# ----------------------------
-# Route
-# ----------------------------
-@router.get("/carparks/{carpark_number}/prediction")
-def predict_carpark(carpark_number: str):
-    mapping = get_static_mapping(carpark_number)
-    carpark_rows = get_latest_carpark_rows(carpark_number)
+def build_prediction_record(
+    row: dict[str, Any],
+    mapping: dict[str, Any],
+    weather_used: str,
+    timestamp_used: datetime,
+) -> dict[str, Any]:
+    return {
+        "carpark_number": row["carpark_number"],
+        "lot_type": row["lot_type"],
+        "timestamp": timestamp_used,
+        "area": mapping["area"],
+        "weather": weather_used,
+        "lots_available": row["lots_available"],
+        "total_lots": row["total_lots"],
+        "latitude": mapping["latitude"],
+        "longitude": mapping["longitude"],
+    }
 
-    if not carpark_rows:
-        raise HTTPException(status_code=404, detail="No carpark rows found.")
 
-    timestamp_used = carpark_rows[0]["timestamp"]
-    weather_used = get_weather_for_area(mapping["area"], timestamp_used)
-
+def predict_for_horizon(
+    horizon_minutes: int,
+    model: Any,
+    valid_rows: list[dict[str, Any]],
+    mapping: dict[str, Any],
+    weather_used: str,
+    timestamp_used: datetime,
+) -> dict[str, Any]:
     by_lot_type = []
-    total_predicted_available_lots = 0.0
-    total_total_lots = 0
 
-    for row in carpark_rows:
-        if is_invalid_lot_row(row):
-            by_lot_type.append(
-                {
-                    "lot_type": row["lot_type"],
-                    "status": "skipped",
-                    "reason": "invalid lot data",
-                    "current_total_lots": row["total_lots"],
-                    "current_lots_available": row["lots_available"],
-                }
-            )
-            continue
-
-        record = {
-            "carpark_number": row["carpark_number"],
-            "lot_type": row["lot_type"],
-            "timestamp": row["timestamp"],
-            "area": mapping["area"],
-            "weather": weather_used,
-            "lots_available": row["lots_available"],
-            "total_lots": row["total_lots"],
-            "latitude": mapping["latitude"],
-            "longitude": mapping["longitude"],
-        }
-
-        pred = predict_one(record)
-
-        total_predicted_available_lots += pred["predicted_available_lots"]
-        total_total_lots += row["total_lots"]
+    for row in valid_rows:
+        record = build_prediction_record(
+            row=row,
+            mapping=mapping,
+            weather_used=weather_used,
+            timestamp_used=timestamp_used,
+        )
+        pred = predict_one(record, model)
 
         by_lot_type.append(
             {
                 "lot_type": row["lot_type"],
-                "status": "predicted",
-                "current_total_lots": row["total_lots"],
-                "current_lots_available": row["lots_available"],
                 "predicted_available_lots": pred["predicted_available_lots"],
                 "predicted_occupancy_rate": pred["predicted_occupancy_rate"],
             }
         )
 
-    if total_total_lots > 0:
-        predicted_occupancy_rate_total = total_predicted_available_lots / total_total_lots
-        predicted_occupancy_rate_total = max(0.0, min(1.0, predicted_occupancy_rate_total))
-    else:
-        predicted_occupancy_rate_total = 0.0
+    return {
+        "horizon_minutes": horizon_minutes,
+        "by_lot_type": by_lot_type,
+    }
+
+
+# ----------------------------
+# Route
+# ----------------------------
+@router.get("/carparks/{carpark_number}/prediction")
+def predict_carpark(carpark_number: str):
+    generated_at = datetime.now(ZoneInfo("Asia/Singapore"))
+
+    mapping = get_static_mapping(carpark_number)
+    carpark_rows = get_latest_carpark_rows(carpark_number)
+    weather_used = get_weather_for_area(mapping["area"], generated_at)
+
+    valid_rows = [row for row in carpark_rows if not is_invalid_lot_row(row)]
+
+    # 更完整的异常分类下一步统一处理；这里先保底避免空预测列表
+    if not valid_rows:
+        raise HTTPException(
+            status_code=422,
+            detail=f"No valid lot rows available for prediction for carpark_number={carpark_number}",
+        )
+
+    predictions = []
+    for horizon_minutes in sorted(models_by_horizon.keys()):
+        model = models_by_horizon[horizon_minutes]
+        prediction_item = predict_for_horizon(
+            horizon_minutes=horizon_minutes,
+            model=model,
+            valid_rows=valid_rows,
+            mapping=mapping,
+            weather_used=weather_used,
+            timestamp_used=generated_at,
+        )
+        predictions.append(prediction_item)
 
     return {
         "carpark_number": carpark_number,
-        "area": mapping["area"],
-        "latitude": mapping["latitude"],
-        "longitude": mapping["longitude"],
-        "timestamp_used": timestamp_used,
-        "weather_used": weather_used,
-        "predicted_available_lots_total": total_predicted_available_lots,
-        "predicted_occupancy_rate_total": predicted_occupancy_rate_total,
-        "by_lot_type": by_lot_type,
+        "generated_at": generated_at,
+        "predictions": predictions,
     }
