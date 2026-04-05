@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" role="img" aria-label="Apple Maps">
+  <defs>
+    <clipPath id="icon-clip">
+      <rect width="48" height="48" rx="10"/>
+    </clipPath>
+  </defs>
+  <g clip-path="url(#icon-clip)">
+    <!-- Sky -->
+    <rect width="48" height="48" fill="#4AABF5"/>
+    <!-- Green land -->
+    <rect y="26" width="48" height="22" fill="#6DBF67"/>
+    <!-- Vertical road -->
+    <rect x="21.5" y="0" width="5" height="48" fill="#D0D0D0"/>
+    <!-- Horizontal road -->
+    <rect y="22" width="48" height="5" fill="#D0D0D0"/>
+    <!-- Road centre lines -->
+    <rect x="23.5" y="0" width="1" height="9" fill="white"/>
+    <rect x="23.5" y="13" width="1" height="7" fill="white"/>
+    <rect x="23.5" y="27" width="1" height="7" fill="white"/>
+    <rect x="23.5" y="38" width="1" height="10" fill="white"/>
+    <rect y="23.5" width="9" height="1" fill="white"/>
+    <rect x="13" y="23.5" width="7" height="1" fill="white"/>
+    <rect x="27" y="23.5" width="7" height="1" fill="white"/>
+    <rect x="38" y="23.5" width="10" height="1" fill="white"/>
+  </g>
+  <!-- Red location pin (sits above the map) -->
+  <path d="M24 6c-3.314 0-6 2.686-6 6 0 4.5 6 13 6 13s6-8.5 6-13c0-3.314-2.686-6-6-6z" fill="#FF3B30"/>
+  <circle cx="24" cy="12" r="2.5" fill="white"/>
+  <!-- Border -->
+  <rect width="48" height="48" rx="10" fill="none" stroke="#c8c8ca" stroke-width="1"/>
+</svg>

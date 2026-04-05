@@ -1,4 +1,3 @@
-import React from 'react';
 import { Dialog, DialogContent } from './ui/dialog';
 
 interface NavigationChooserModalProps {
@@ -11,7 +10,7 @@ interface NavigationChooserModalProps {
 
 interface NavOption {
     name: string;
-    icon: React.ReactNode;
+    iconSrc: string;
     getUrl: (lat: number, lng: number) => string;
     bgColor: string;
     textColor: string;
@@ -19,49 +18,10 @@ interface NavOption {
     appleOnly?: boolean;
 }
 
-function AppleMapsIcon() {
-    return (
-        <svg width="28" height="28" viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-            <rect width="28" height="28" rx="6" fill="#1C1C1E" />
-            <path d="M14 5L9.5 15h3.5v8l6-10.5H20L14 5z" fill="white" />
-            <circle cx="8" cy="21" r="1.8" fill="#34C759" />
-            <circle cx="20" cy="21" r="1.8" fill="#FF3B30" />
-            <line x1="8" y1="21" x2="20" y2="21" stroke="#8E8E93" strokeWidth="1.2" />
-        </svg>
-    );
-}
-
-function WazeIcon() {
-    return (
-        <svg width="28" height="28" viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-            <rect width="28" height="28" rx="6" fill="#33CCFF" />
-            <ellipse cx="14" cy="13" rx="7.5" ry="7" fill="white" />
-            <circle cx="11.5" cy="11.5" r="1.2" fill="#1A1A1A" />
-            <circle cx="16.5" cy="11.5" r="1.2" fill="#1A1A1A" />
-            <path d="M11 15.5c.8 1.2 5.2 1.2 6 0" stroke="#1A1A1A" strokeWidth="1.2" strokeLinecap="round" />
-            <circle cx="18.5" cy="20.5" r="2.5" fill="#FF9500" />
-            <circle cx="18.5" cy="20.5" r="1" fill="white" />
-        </svg>
-    );
-}
-
-function GoogleMapsIcon() {
-    return (
-        <svg width="28" height="28" viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-            <rect width="28" height="28" rx="6" fill="white" />
-            <path d="M14 4C10.134 4 7 7.134 7 11c0 5.5 7 15 7 15s7-9.5 7-15c0-3.866-3.134-7-7-7z" fill="#EA4335" />
-            <path d="M14 4c1.93 0 3.68.782 4.95 2.05L14 11l-4.95-4.95A6.965 6.965 0 0114 4z" fill="#1A73E8" />
-            <path d="M7 11c0-1.93.782-3.68 2.05-4.95L14 11H7z" fill="#34A853" />
-            <path d="M14 11l4.95-4.95C20.218 7.32 21 9.07 21 11h-7z" fill="#FBBC04" />
-            <circle cx="14" cy="11" r="3" fill="white" />
-        </svg>
-    );
-}
-
 const NAV_OPTIONS: NavOption[] = [
     {
         name: 'Apple Maps',
-        icon: <AppleMapsIcon />,
+        iconSrc: '/icons/apple-maps.svg',
         getUrl: (lat, lng) =>
             `https://maps.apple.com/?daddr=${lat},${lng}&dirflg=d`,
         bgColor: 'bg-gray-50 hover:bg-gray-100',
@@ -70,7 +30,7 @@ const NAV_OPTIONS: NavOption[] = [
     },
     {
         name: 'Waze',
-        icon: <WazeIcon />,
+        iconSrc: '/icons/waze.svg',
         getUrl: (lat, lng) =>
             `https://waze.com/ul?ll=${lat},${lng}&navigate=yes`,
         bgColor: 'bg-cyan-50 hover:bg-cyan-100',
@@ -78,7 +38,7 @@ const NAV_OPTIONS: NavOption[] = [
     },
     {
         name: 'Google Maps',
-        icon: <GoogleMapsIcon />,
+        iconSrc: '/icons/google-maps.svg',
         getUrl: (lat, lng) =>
             `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`,
         bgColor: 'bg-blue-50 hover:bg-blue-100',
@@ -139,7 +99,13 @@ export function NavigationChooserModal({
                                 onClick={() => handleSelect(option)}
                                 className={`w-full flex items-center gap-4 px-4 py-4 rounded-xl border border-gray-200 transition-colors ${option.bgColor}`}
                             >
-                                {option.icon}
+                                <img
+                                    src={option.iconSrc}
+                                    alt={option.name}
+                                    width={28}
+                                    height={28}
+                                    className="rounded-[6px] shrink-0"
+                                />
                                 <span className={`text-base font-medium ${option.textColor}`}>
                                     {option.name}
                                 </span>
