@@ -4,15 +4,41 @@ Real-time Singapore carpark finder. Search by destination or postal code, view l
 
 ---
 
-## Backend Update
+## Latest Backend Update
 
-The backend now includes a prediction API for checking the predicted availability of a specific carpark.
+The backend now includes a prediction API that estimates near-term carpark availability from the latest database snapshot, static carpark metadata, and a bundled LightGBM model.
 
-### Local API Call
+### What Was Added
+
+| Area | Update |
+|---|---|
+| API | Added `GET /api/v1/carparks/{carpark_number}/prediction` |
+| ML assets | Added bundled model files under `backend/app/models/` |
+| Static data | Added `backend/app/data/static_carpark_mapping.csv` |
+| Database config | Added `DB_PORT`, `DB_SSL_MODE`, and `DB_SSL_ROOT_CERT` support |
+| Dependencies | Added `pandas`, `joblib`, `lightgbm`, `scikit-learn`, and `psycopg2-binary` |
+
+### Prediction Endpoint
+
+The new endpoint loads the latest rows for a given carpark from PostgreSQL, enriches them with area and weather context, and returns:
+
+- predicted available lots by lot type
+- predicted occupancy rate by lot type
+- total predicted available lots
+- total predicted occupancy rate
+- timestamp and weather used for the prediction
+
+Local call:
 
 ```text
 http://127.0.0.1:8000/api/v1/carparks/{carpark_number}/prediction
 ```
+
+### Backend Notes
+
+- The prediction route depends on PostgreSQL data and will not work from CSV-only local data.
+- SSL database connection settings now default to `verify-full` and `backend/global-bundle.pem`.
+- Model and feature files are resolved from `backend/app/models/` through `app/core/config.py`.
 
 ---
 
