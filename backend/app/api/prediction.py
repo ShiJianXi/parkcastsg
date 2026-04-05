@@ -116,7 +116,7 @@ def predict_one(record: dict, model: Any) -> dict:
     if total_lots <= 0:
         pred_occ = 0.0
     else:
-        pred_occ = pred_lots / total_lots
+        pred_occ = 1.0 - (pred_lots / total_lots)
         pred_occ = max(0.0, min(1.0, pred_occ))
 
     return {
