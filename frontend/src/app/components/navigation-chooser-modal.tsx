@@ -10,7 +10,6 @@ interface NavigationChooserModalProps {
 
 interface NavOption {
     name: string;
-    iconSrc: string;
     getUrl: (lat: number, lng: number) => string;
     bgColor: string;
     textColor: string;
@@ -21,7 +20,6 @@ interface NavOption {
 const NAV_OPTIONS: NavOption[] = [
     {
         name: 'Apple Maps',
-        iconSrc: '/icons/apple-maps.svg',
         getUrl: (lat, lng) =>
             `https://maps.apple.com/?daddr=${lat},${lng}&dirflg=d`,
         bgColor: 'bg-gray-50 hover:bg-gray-100',
@@ -30,7 +28,6 @@ const NAV_OPTIONS: NavOption[] = [
     },
     {
         name: 'Waze',
-        iconSrc: '/icons/waze.svg',
         getUrl: (lat, lng) =>
             `https://waze.com/ul?ll=${lat},${lng}&navigate=yes`,
         bgColor: 'bg-cyan-50 hover:bg-cyan-100',
@@ -38,7 +35,6 @@ const NAV_OPTIONS: NavOption[] = [
     },
     {
         name: 'Google Maps',
-        iconSrc: '/icons/google-maps.svg',
         getUrl: (lat, lng) =>
             `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`,
         bgColor: 'bg-blue-50 hover:bg-blue-100',
@@ -97,15 +93,8 @@ export function NavigationChooserModal({
                             <button
                                 key={option.name}
                                 onClick={() => handleSelect(option)}
-                                className={`w-full flex items-center gap-4 px-4 py-4 rounded-xl border border-gray-200 transition-colors ${option.bgColor}`}
+                                className={`w-full flex items-center px-4 py-4 rounded-xl border border-gray-200 transition-colors ${option.bgColor}`}
                             >
-                                <img
-                                    src={option.iconSrc}
-                                    alt={option.name}
-                                    width={28}
-                                    height={28}
-                                    className="rounded-[6px] shrink-0"
-                                />
                                 <span className={`text-base font-medium ${option.textColor}`}>
                                     {option.name}
                                 </span>
