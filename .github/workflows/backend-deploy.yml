@@ -54,9 +54,23 @@ jobs:
       - name: Create environment if missing
         run: |
           ENV_NAME="${{ steps.env.outputs.env_name }}"
-          if ! eb list | grep -q "$ENV_NAME"; then
+          EXISTS=$(aws elasticbeanstalk describe-environments \
+            --environment-names "$ENV_NAME" \
+            --region ap-southeast-1 \
+            --query "Environments[0].EnvironmentName" \
+            --output text || true)
+
+          if [ "$EXISTS" = "None" ] || [ -z "$EXISTS" ]; then
+            echo "Environment does not exist. Creating $ENV_NAME..."
             eb create "$ENV_NAME" --single --instance_type t3.micro
+          else
+            echo "Environment $ENV_NAME already exists."
           fi
+
+      - name: Select EB environment
+        run: |
+          ENV_NAME="${{ steps.env.outputs.env_name }}"
+          eb use "$ENV_NAME" || true
 
       - name: Deploy to Elastic Beanstalk
         run: |
