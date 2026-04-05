@@ -8,6 +8,11 @@ export interface Carpark {
     lng: number;
     availableLots: number;
     totalLots: number;
+    lotTypes?: {
+        lotType: string;
+        availableLots: number;
+        totalLots: number;
+    }[];
     availabilityLevel: AvailabilityLevel;
     walkingMinutes: number;
     hourlyRate: number;
