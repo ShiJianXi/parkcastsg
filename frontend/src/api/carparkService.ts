@@ -19,6 +19,7 @@ export interface NearbyCarpark {
     night_parking: boolean;
     car_park_type: string;
     free_parking: string;
+    short_term_parking: string;
     is_central: boolean;
     is_peak: boolean;
 }
@@ -94,6 +95,7 @@ export function transformCarpark(raw: NearbyCarpark): Carpark {
         distance: raw.distance,
         nightParking: raw.night_parking,
         freeParking: raw.free_parking,
+        shortTermParking: raw.short_term_parking,
         isCentral: raw.is_central,
         isPeak: raw.is_peak,
         isRecommended: raw.available_lots > 10 && raw.is_sheltered,

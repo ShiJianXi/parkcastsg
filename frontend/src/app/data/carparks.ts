@@ -18,6 +18,7 @@ export interface Carpark {
     distance: number; // in meters
     nightParking?: boolean;
     freeParking?: string;
+    shortTermParking?: string;
     isCentral?: boolean;
     isPeak?: boolean;
     prediction?: {

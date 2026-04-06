@@ -83,6 +83,7 @@ def _load() -> dict[str, dict]:
                 "night_parking": row.get("night_parking", "NO") == "YES",
                 "car_park_type": cp_type,
                 "free_parking": row.get("free_parking", "NO"),
+                "short_term_parking": row.get("short_term_parking", "NO"),
                 "is_central": cp_no in _CENTRAL_CARPARKS,
                 "is_peak": cp_no in _PEAK_CARPARKS,
             }
