@@ -19,8 +19,7 @@ router = APIRouter(tags=["prediction"])
 # Startup-time resources
 # ----------------------------
 models_by_horizon: dict[int, Any] = {
-    horizon: joblib.load(path)
-    for horizon, path in settings.MODEL_FILES.items()
+    horizon: joblib.load(path) for horizon, path in settings.MODEL_FILES.items()
 }
 
 feature_cols = joblib.load(settings.FEATURE_COLS_FILE)
@@ -42,7 +41,9 @@ STATIC_CARPARK_MAP: dict[str, dict[str, Any]] = {
 # ----------------------------
 # Helper functions
 # ----------------------------
-def api_error(status_code: int, error_code: str, message: str, carpark_number: str | None = None):
+def api_error(
+    status_code: int, error_code: str, message: str, carpark_number: str | None = None
+):
     detail = {
         "error_code": error_code,
         "message": message,
@@ -51,6 +52,7 @@ def api_error(status_code: int, error_code: str, message: str, carpark_number: s
         detail["carpark_number"] = carpark_number
 
     raise HTTPException(status_code=status_code, detail=detail)
+
 
 def get_db_connection():
     return psycopg2.connect(**settings.db_config)
@@ -116,7 +118,7 @@ def predict_one(record: dict, model: Any) -> dict:
     if total_lots <= 0:
         pred_occ = 0.0
     else:
-        pred_occ = pred_lots / total_lots
+        pred_occ = 1.0 - (pred_lots / total_lots)
         pred_occ = max(0.0, min(1.0, pred_occ))
 
     return {
@@ -183,7 +185,9 @@ def get_latest_carpark_rows(carpark_number: str) -> list[dict[str, Any]]:
             conn.close()
 
 
-def get_weather_for_area(area: str, timestamp: datetime, carpark_number: str | None = None) -> str:
+def get_weather_for_area(
+    area: str, timestamp: datetime, carpark_number: str | None = None
+) -> str:
     query = """
         SELECT forecast
         FROM weather_dynamic_full
@@ -292,7 +296,9 @@ def predict_carpark(carpark_number: str):
 
         mapping = get_static_mapping(carpark_number)
         carpark_rows = get_latest_carpark_rows(carpark_number)
-        weather_used = get_weather_for_area(mapping["area"], generated_at, carpark_number=carpark_number)
+        weather_used = get_weather_for_area(
+            mapping["area"], generated_at, carpark_number=carpark_number
+        )
 
         valid_rows = [row for row in carpark_rows if not is_invalid_lot_row(row)]
 
