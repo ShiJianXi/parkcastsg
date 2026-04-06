@@ -7,6 +7,7 @@ from math import atan2, cos, radians, sin, sqrt
 import httpx
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
+from dotenv import load_dotenv
 
 from app.data.carpark_lookup import CARPARK_LOOKUP
 
@@ -15,6 +16,7 @@ router = APIRouter()
 HDB_AVAILABILITY_URL = "https://api.data.gov.sg/v1/transport/carpark-availability"
 LTA_AVAILABILITY_URL = "https://datamall2.mytransport.sg/ltaodataservice/CarParkAvailabilityv2"
 
+load_dotenv()
 LTA_API_KEY = os.getenv("LTA_API_KEY") or ""  # empty string is treated as "not configured"
 
 # Prefix used to distinguish LTA carpark IDs from HDB carpark numbers
@@ -188,6 +190,7 @@ async def _fetch_lta_carparks(lat: float, lng: float, radius: int) -> list[Carpa
     fails, so the calling endpoint degrades gracefully to HDB-only results.
     """
     if not LTA_API_KEY:
+        print("LTA_API_KEY not configured; skipping LTA carparks")
         return []
 
     try:
