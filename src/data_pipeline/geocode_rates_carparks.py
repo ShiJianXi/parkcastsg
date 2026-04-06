@@ -1,6 +1,6 @@
 """
 Geocodes every carpark in CarparkRates.csv that is NOT already tracked by
-the HDB or LTA DataMall datasets, then saves the results to
+the LTA DataMall dataset, then saves the results to
 backend/app/data/supplemental_carparks.csv.
 
 The output CSV feeds the ``supplemental_carpark_lookup`` backend module so
@@ -18,6 +18,10 @@ carparks already tracked by LTA are correctly suppressed:
 
 OneMap is a free Singapore government geocoding service — no API key is
 required for the search endpoint used here.
+
+Note: CarparkRates.csv entries use mall/building names (e.g. "Causeway
+Point"), not HDB addresses (e.g. "BLK 1 ANG MO KIO AVE 1"), so there is
+no meaningful overlap with the HDB dataset — only LTA names are excluded.
 """
 from __future__ import annotations
 
@@ -34,7 +38,6 @@ import requests
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 _RATES_CSV = _REPO_ROOT / "backend" / "app" / "data" / "CarparkRates.csv"
-_HDB_INFO_CSV = _REPO_ROOT / "backend" / "app" / "data" / "HDBCarparkInformation.csv"
 _LTA_CSV = _REPO_ROOT / "backend" / "app" / "data" / "lta_carparks.csv"
 _OUTPUT_CSV = _REPO_ROOT / "backend" / "app" / "data" / "supplemental_carparks.csv"
 
@@ -51,21 +54,8 @@ def _normalise(name: str) -> str:
 
 
 # ---------------------------------------------------------------------------
-# Build exclusion sets from existing datasets
+# Build LTA exclusion set
 # ---------------------------------------------------------------------------
-
-
-def _hdb_addresses() -> set[str]:
-    """Normalised addresses from HDBCarparkInformation.csv."""
-    addrs: set[str] = set()
-    if not _HDB_INFO_CSV.exists():
-        return addrs
-    with open(_HDB_INFO_CSV, encoding="utf-8") as f:
-        for row in csv.DictReader(f):
-            addr = row.get("address", "").strip()
-            if addr:
-                addrs.add(_normalise(addr))
-    return addrs
 
 
 def _lta_names() -> set[str]:
@@ -122,10 +112,9 @@ def _geocode(name: str) -> tuple[float, float] | None:
 
 
 def main() -> None:
-    print("Loading exclusion sets…")
-    hdb = _hdb_addresses()
+    print("Loading LTA exclusion set…")
     lta = _lta_names()
-    print(f"  HDB addresses: {len(hdb)}, LTA names: {len(lta)}")
+    print(f"  LTA names: {len(lta)}")
 
     print("Reading CarparkRates.csv…")
     with open(_RATES_CSV, encoding="utf-8") as f:
@@ -137,12 +126,11 @@ def main() -> None:
         name = row.get("carpark", "").strip()
         if not name:
             continue
-        key = _normalise(name)
-        if key in hdb or key in lta:
-            continue  # already covered by an existing dataset
+        if _normalise(name) in lta:
+            continue  # already tracked by LTA DataMall
         to_geocode.append(name)
 
-    print(f"  {len(to_geocode)} carparks to geocode (not in HDB or LTA datasets)")
+    print(f"  {len(to_geocode)} carparks to geocode (not in LTA dataset)")
 
     results: list[dict] = []
     failed: list[str] = []
@@ -157,8 +145,8 @@ def main() -> None:
             lat, lng = coords
             print(f"    ✓ {lat:.6f}, {lng:.6f}")
             results.append({"name": name, "lat": lat, "lng": lng})
-        # Be polite to OneMap — 5 requests/second max
-        time.sleep(0.2)
+        # Be polite to OneMap — stay safely under 5 req/s
+        time.sleep(0.25)
 
     _OUTPUT_CSV.parent.mkdir(parents=True, exist_ok=True)
     with open(_OUTPUT_CSV, "w", newline="", encoding="utf-8") as f:

@@ -8,7 +8,6 @@ from math import atan2, cos, radians, sin, sqrt
 import httpx
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
-from dotenv import load_dotenv
 
 from app.data.carpark_lookup import CARPARK_LOOKUP
 from app.data.lta_carpark_lookup import LTA_CARPARK_LOOKUP
@@ -20,7 +19,6 @@ router = APIRouter()
 HDB_AVAILABILITY_URL = "https://api.data.gov.sg/v1/transport/carpark-availability"
 LTA_AVAILABILITY_URL = "https://datamall2.mytransport.sg/ltaodataservice/CarParkAvailabilityv2"
 
-load_dotenv()
 LTA_API_KEY = os.getenv("LTA_API_KEY") or ""  # empty string is treated as "not configured"
 
 # Prefix used to distinguish LTA carpark IDs from HDB carpark numbers
@@ -94,17 +92,6 @@ def _crowd_level_absolute(available: int) -> str:
     if available > 20:
         return "medium"
     return "high"
-
-
-def _parse_lta_location(location: str) -> tuple[float, float] | None:
-    """Parse an LTA 'lat lng' space-separated location string."""
-    parts = location.strip().split()
-    if len(parts) != 2:
-        return None
-    try:
-        return float(parts[0]), float(parts[1])
-    except ValueError:
-        return None
 
 
 def _rate_field(value: str) -> str | None:
@@ -237,7 +224,11 @@ async def _fetch_lta_carparks(lat: float, lng: float, radius: int) -> list[Carpa
                 headers={"AccountKey": LTA_API_KEY, "accept": "application/json"},
             )
             resp.raise_for_status()
-    except httpx.HTTPError:
+    except httpx.HTTPError as exc:
+        logging.warning(
+            "Failed to fetch LTA carpark availability; returning no LTA results",
+            exc_info=exc,
+        )
         return []  # degrade gracefully
 
     try:
@@ -363,8 +354,8 @@ async def _get_lta_carpark(
 
     if not LTA_API_KEY:
         raise HTTPException(
-            status_code=404,
-            detail=f"LTA carpark '{carpark_id}' not found (LTA_API_KEY not configured)",
+            status_code=503,
+            detail="LTA service unavailable: LTA_API_KEY not configured",
         )
 
     try:

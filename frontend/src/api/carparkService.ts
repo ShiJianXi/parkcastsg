@@ -13,7 +13,7 @@ export interface NearbyCarpark {
     lng: number;
     available_lots: number;
     total_lots: number;
-    crowd_level: 'low' | 'medium' | 'high' | 'full';
+    crowd_level: 'low' | 'medium' | 'high' | 'full' | 'unknown';
     is_sheltered: boolean;
     distance: number; // metres
     night_parking: boolean;
@@ -96,8 +96,9 @@ export function transformCarpark(raw: NearbyCarpark): Carpark {
         availabilityLevel: crowdToAvailability(raw.crowd_level),
         walkingMinutes: distanceToWalkingMinutes(raw.distance),
       
-        // LTA/supplemental rates vary per carpark; HDB uses the standard $1.20/hr rate
-        hourlyRate: (isLta || isSupplemental) ? 0 : 1.2,
+        // LTA/supplemental rates vary per carpark; use Infinity so they never
+        // float to the top of a "cheapest" sort. HDB uses the standard $1.20/hr.
+        hourlyRate: (isLta || isSupplemental) ? Number.POSITIVE_INFINITY : 1.2,
 
         isSheltered: raw.is_sheltered,
         carparkType: raw.car_park_type,
