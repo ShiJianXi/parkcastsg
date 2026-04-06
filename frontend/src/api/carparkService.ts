@@ -5,6 +5,8 @@ const API_BASE = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8000';
 // ---------------------------------------------------------------------------
 // Raw shape returned by the backend
 // ---------------------------------------------------------------------------
+import { getNumericLiveCarRate } from '../app/utils/pricingEngine';
+
 export interface NearbyCarpark {
     id: string;
     name: string;
@@ -79,7 +81,7 @@ function distanceToWalkingMinutes(distanceMetres: number): number {
 }
 
 export function transformCarpark(raw: NearbyCarpark): Carpark {
-    return {
+    const cp: Carpark = {
         id: raw.id,
         name: raw.name,
         address: raw.address,
@@ -89,7 +91,7 @@ export function transformCarpark(raw: NearbyCarpark): Carpark {
         totalLots: raw.total_lots,
         availabilityLevel: crowdToAvailability(raw.crowd_level),
         walkingMinutes: distanceToWalkingMinutes(raw.distance),
-        hourlyRate: 1.20, // HDB standard rate: $0.60 per 30 min = $1.20/hr — can be enriched later TODO: will change this to dynamic if needed in the future
+        hourlyRate: 1.20, // default, will be overridden
         isSheltered: raw.is_sheltered,
         carparkType: raw.car_park_type,
         distance: raw.distance,
@@ -100,4 +102,9 @@ export function transformCarpark(raw: NearbyCarpark): Carpark {
         isPeak: raw.is_peak,
         isRecommended: raw.available_lots > 10 && raw.is_sheltered,
     };
+    
+    // Assign accurate live numeric rate for UI sorting (e.g. 'Cheapest')
+    cp.hourlyRate = getNumericLiveCarRate(cp);
+    
+    return cp;
 }
