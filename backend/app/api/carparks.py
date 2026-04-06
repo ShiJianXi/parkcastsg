@@ -11,6 +11,7 @@ from pydantic import BaseModel
 from dotenv import load_dotenv
 
 from app.data.carpark_lookup import CARPARK_LOOKUP
+from app.data.lta_carpark_lookup import LTA_CARPARK_LOOKUP
 from app.data.lta_rates_lookup import lookup_rate
 
 router = APIRouter()
@@ -200,13 +201,34 @@ async def _fetch_hdb_carparks(lat: float, lng: float, radius: int) -> list[Carpa
 async def _fetch_lta_carparks(lat: float, lng: float, radius: int) -> list[CarparkAvailability]:
     """Fetch non-HDB carparks from LTA DataMall within radius.
 
-    Returns an empty list if LTA_API_KEY is unset or if the upstream request
-    fails, so the calling endpoint degrades gracefully to HDB-only results.
+    Uses the static ``LTA_CARPARK_LOOKUP`` for geometry filtering so that the
+    LTA availability API is only called when at least one LTA carpark falls
+    within the requested radius — and never called at all if the static CSV
+    has not been generated yet.
+
+    Returns an empty list (degrades gracefully) when:
+    - ``LTA_CARPARK_LOOKUP`` is empty (CSV not yet generated)
+    - No LTA carparks lie within ``radius``
+    - ``LTA_API_KEY`` is unset
+    - The upstream availability request fails
     """
+    if not LTA_CARPARK_LOOKUP:
+        return []
+
+    # 1. Geometry-filter from in-memory static lookup — no network call needed.
+    nearby: dict[str, dict] = {
+        cp_id: info
+        for cp_id, info in LTA_CARPARK_LOOKUP.items()
+        if _haversine(lat, lng, info["lat"], info["lng"]) <= radius
+    }
+    if not nearby:
+        return []  # nothing in range — skip the API call entirely
+
     if not LTA_API_KEY:
         logging.warning("LTA_API_KEY not configured; skipping LTA carparks")
         return []
 
+    # 2. Fetch live availability for all carparks (API returns the full dataset).
     try:
         async with httpx.AsyncClient(timeout=10.0) as client:
             resp = await client.get(
@@ -225,62 +247,51 @@ async def _fetch_lta_carparks(lat: float, lng: float, radius: int) -> list[Carpa
     if not isinstance(data, dict) or not isinstance(data.get("value"), list):
         return []
 
-    # Group by CarParkID, summing car lots only (LotType "C").
-    # The LTA API returns one row per LotType per carpark, so grouping is needed.
-    groups: dict[str, dict] = {}
-
+    # 3. Build an availability dict: raw CarParkID -> available car lots.
+    #    Sum across multiple LotType="C" entries for the same CarParkID.
+    availability: dict[str, int] = {}
     for entry in data["value"]:
         if not isinstance(entry, dict):
             continue
         if entry.get("Agency", "") in _HDB_AGENCIES:
-            continue  # already covered by the HDB dataset
+            continue
         if entry.get("LotType", "") != "C":
-            continue  # only count car lots
-
+            continue
         cp_id = str(entry.get("CarParkID", "")).strip()
-        if not cp_id:
-            continue
+        if cp_id:
+            availability[cp_id] = availability.get(cp_id, 0) + int(entry.get("AvailableLots", 0))
 
-        coords = _parse_lta_location(entry.get("Location", ""))
-        if coords is None:
-            continue
-
-        cp_lat, cp_lng = coords
-        dist = _haversine(lat, lng, cp_lat, cp_lng)
-        if dist > radius:
-            continue
-
-        available = int(entry.get("AvailableLots", 0))
-        development = entry.get("Development", "").strip()
+    # 4. Join static metadata with live availability counts.
+    results: list[CarparkAvailability] = []
+    for cp_id, info in nearby.items():
+        dist = _haversine(lat, lng, info["lat"], info["lng"])
+        available = availability.get(cp_id, 0)
+        development = info["development"]
         prefixed_id = f"{LTA_ID_PREFIX}{cp_id}"
+        rates = lookup_rate(development) or {}
+        results.append(
+            CarparkAvailability(
+                id=prefixed_id,
+                name=development or f"Carpark {cp_id}",
+                address=development or f"Carpark {cp_id}",
+                lat=info["lat"],
+                lng=info["lng"],
+                available_lots=available,
+                total_lots=0,  # LTA API does not provide total lots
+                crowd_level=_crowd_level_absolute(available),
+                is_sheltered=True,  # LTA API does not expose shelter info; default to True
+                distance=round(dist),
+                night_parking=True,  # LTA API does not expose night-parking info; default to True
+                car_park_type="CAR PARK",
+                source="lta",
+                weekdays_rate_1=_rate_field(rates.get("weekdays_rate_1", "")),
+                weekdays_rate_2=_rate_field(rates.get("weekdays_rate_2", "")),
+                saturday_rate=_rate_field(rates.get("saturday_rate", "")),
+                sunday_ph_rate=_rate_field(rates.get("sunday_ph_rate", "")),
+            )
+        )
 
-        if prefixed_id in groups:
-            groups[prefixed_id]["available_lots"] += available
-        else:
-            rates = lookup_rate(development) or {}
-            groups[prefixed_id] = {
-                "id": prefixed_id,
-                "name": development or f"Carpark {cp_id}",
-                "address": development or f"Carpark {cp_id}",
-                "lat": cp_lat,
-                "lng": cp_lng,
-                "available_lots": available,
-                "total_lots": 0,  # LTA API does not provide total lots
-                "is_sheltered": True,  # LTA API does not expose shelter info; default to True (commercial carparks are typically covered)
-                "distance": round(dist),
-                "night_parking": True,  # LTA API does not expose night-parking info; default to True to avoid hiding options
-                "car_park_type": "CAR PARK",
-                "source": "lta",
-                "weekdays_rate_1": _rate_field(rates.get("weekdays_rate_1", "")),
-                "weekdays_rate_2": _rate_field(rates.get("weekdays_rate_2", "")),
-                "saturday_rate": _rate_field(rates.get("saturday_rate", "")),
-                "sunday_ph_rate": _rate_field(rates.get("sunday_ph_rate", "")),
-            }
-
-    return [
-        CarparkAvailability(**g, crowd_level=_crowd_level_absolute(g["available_lots"]))
-        for g in groups.values()
-    ]
+    return results
 
 
 async def _get_hdb_carpark(
@@ -335,14 +346,25 @@ async def _get_hdb_carpark(
 async def _get_lta_carpark(
     carpark_id: str, lat: float | None, lng: float | None
 ) -> CarparkAvailability:
-    """Fetch a single LTA carpark by its prefixed ID (e.g. 'LTA_B0020')."""
+    """Fetch a single LTA carpark by its prefixed ID (e.g. 'LTA_B0020').
+
+    Metadata is read from the static ``LTA_CARPARK_LOOKUP``; only live
+    availability is fetched from the LTA API.
+    """
+    raw_id = carpark_id[len(LTA_ID_PREFIX):]  # strip the LTA_ prefix
+
+    info = LTA_CARPARK_LOOKUP.get(raw_id)
+    if info is None:
+        raise HTTPException(
+            status_code=404,
+            detail=f"LTA carpark '{carpark_id}' not found (not in static lookup — run fetch_lta_carparks.py)",
+        )
+
     if not LTA_API_KEY:
         raise HTTPException(
             status_code=404,
             detail=f"LTA carpark '{carpark_id}' not found (LTA_API_KEY not configured)",
         )
-
-    raw_id = carpark_id[len(LTA_ID_PREFIX):]  # strip the LTA_ prefix
 
     try:
         async with httpx.AsyncClient(timeout=10.0) as client:
@@ -362,40 +384,28 @@ async def _get_lta_carpark(
     if not isinstance(data, dict) or not isinstance(data.get("value"), list):
         raise HTTPException(status_code=502, detail="Unexpected LTA API response shape")
 
-    # Collect all car-lot entries for this carpark ID
-    entries = [
-        e for e in data["value"]
+    # Sum available car lots for this carpark across any multiple LotType="C" entries
+    available = sum(
+        int(e.get("AvailableLots", 0))
+        for e in data["value"]
         if isinstance(e, dict)
         and str(e.get("CarParkID", "")).strip() == raw_id
         and e.get("LotType") == "C"
-    ]
-    if not entries:
-        raise HTTPException(
-            status_code=404,
-            detail=f"LTA carpark '{carpark_id}' not found in availability data",
-        )
+    )
 
-    entry = entries[0]
-    coords = _parse_lta_location(entry.get("Location", ""))
-    if coords is None:
-        raise HTTPException(status_code=502, detail="LTA API returned invalid location data")
-
-    cp_lat, cp_lng = coords
-    development = entry.get("Development", "").strip()
-    available = sum(int(e.get("AvailableLots", 0)) for e in entries)
+    development = info["development"]
+    rates = lookup_rate(development) or {}
 
     dist = 0
     if lat is not None and lng is not None:
-        dist = _haversine(lat, lng, cp_lat, cp_lng)
-
-    rates = lookup_rate(development) or {}
+        dist = _haversine(lat, lng, info["lat"], info["lng"])
 
     return CarparkAvailability(
         id=carpark_id,
         name=development or f"Carpark {raw_id}",
         address=development or f"Carpark {raw_id}",
-        lat=cp_lat,
-        lng=cp_lng,
+        lat=info["lat"],
+        lng=info["lng"],
         available_lots=available,
         total_lots=0,  # LTA API does not provide total lots
         crowd_level=_crowd_level_absolute(available),
