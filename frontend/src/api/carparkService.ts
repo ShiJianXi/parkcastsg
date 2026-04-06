@@ -85,7 +85,7 @@ export function transformCarpark(raw: NearbyCarpark): Carpark {
         totalLots: raw.total_lots,
         availabilityLevel: crowdToAvailability(raw.crowd_level),
         walkingMinutes: distanceToWalkingMinutes(raw.distance),
-        hourlyRate: 0.60, // HDB standard rate — can be enriched later TODO: will change this to dynamic if needed in the future
+        hourlyRate: 1.20, // HDB standard rate: $0.60 per 30 min = $1.20/hr — can be enriched later TODO: will change this to dynamic if needed in the future
         isSheltered: raw.is_sheltered,
         carparkType: raw.car_park_type,
         distance: raw.distance,
