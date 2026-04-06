@@ -1,5 +1,6 @@
 import { MapPin, CloudRain } from 'lucide-react';
 import { type Carpark, getAvailabilityColor, getAvailabilityText, formatCarparkType } from '../data/carparks';
+import { calculateLiveRates } from '../utils/pricingEngine';
 
 interface CarparkCardProps {
     carpark: Carpark;
@@ -56,12 +57,27 @@ export function CarparkCard({ carpark, isSelected, showRainIcon, onClick, onView
                         </div>
 
                         {/* Walking Distance */}
-                        <span className="text-sm text-gray-600">{carpark.walkingMinutes} min walk</span>
+                        <span className="text-sm text-gray-600 border-r border-gray-300 pr-4">{carpark.walkingMinutes} min walk</span>
 
-                        {/* Price */}
-                        <span className="text-sm font-medium text-gray-900">
-                            ~${carpark.hourlyRate.toFixed(2)}/hr (Might not be accurate as of now)
-                        </span>
+                        {/* Price (3 Vehicles) */}
+                        <div className="flex items-center gap-3 text-sm font-medium text-gray-900">
+                            {(() => {
+                                const prices = calculateLiveRates(carpark);
+                                return (
+                                    <>
+                                        <div className="flex items-center gap-1" title="Motor Car">
+                                            <span>🚗</span> {prices.car}
+                                        </div>
+                                        <div className="flex items-center gap-1" title="Motorcycle">
+                                            <span>🏍️</span> {prices.motorcycle}
+                                        </div>
+                                        <div className="flex items-center gap-1" title="Heavy Vehicle">
+                                            <span>🚚</span> {prices.heavy}
+                                        </div>
+                                    </>
+                                );
+                            })()}
+                        </div>
 
                         {/* Rain Icon */}
                         {showRainIcon && carpark.isSheltered && (
@@ -75,8 +91,7 @@ export function CarparkCard({ carpark, isSelected, showRainIcon, onClick, onView
                     {carpark.isRecommended && (
                         <div className="mt-2 pt-2 border-t border-gray-100">
                             <p className="text-xs text-gray-600">
-                                High availability · {carpark.isSheltered ? 'Sheltered' : formatCarparkType(carpark.carparkType)} · $
-                                {carpark.hourlyRate.toFixed(2)}/hr
+                                High availability · {carpark.isSheltered ? 'Sheltered' : formatCarparkType(carpark.carparkType)}
                             </p>
                         </div>
                     )}

@@ -31,6 +31,9 @@ class CarparkAvailability(BaseModel):
     distance: int  # metres from the query point
     night_parking: bool
     car_park_type: str  # e.g. "MULTI-STOREY CAR PARK", "SURFACE CAR PARK"
+    free_parking: str
+    is_central: bool
+    is_peak: bool
 
 
 # ---------------------------------------------------------------------------
@@ -146,6 +149,9 @@ async def get_nearby_carparks(lat: float, lng: float, radius: int = 500):
                 distance=round(dist),
                 night_parking=info["night_parking"],
                 car_park_type=info.get("car_park_type", ""),
+                free_parking=info.get("free_parking", "NO"),
+                is_central=info.get("is_central", False),
+                is_peak=info.get("is_peak", False),
             )
         )
 
@@ -203,4 +209,7 @@ async def get_carpark(carpark_id: str, lat: float | None = None, lng: float | No
         distance=round(dist),
         night_parking=info["night_parking"],
         car_park_type=info.get("car_park_type", ""),
+        free_parking=info.get("free_parking", "NO"),
+        is_central=info.get("is_central", False),
+        is_peak=info.get("is_peak", False),
     )
