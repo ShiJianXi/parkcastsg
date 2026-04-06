@@ -9,6 +9,7 @@ import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Cell } from 'recharts
 import { getCarparkById, transformCarpark } from '../../api/carparkService';
 import { getWeatherForecast, type WeatherData } from '../../api/weatherService';
 import { LoadingSkeleton } from '../components/loading-skeleton';
+import { generatePricingBreakdown } from '../utils/pricingEngine';
 
 export function CarparkDetailPage() {
     const navigate = useNavigate();
@@ -254,44 +255,43 @@ export function CarparkDetailPage() {
 
                     {/* Pricing Section */}
                     <div className="bg-white rounded-[12px] p-6 shadow-sm border border-gray-200">
-                        <h2 className="text-base font-semibold text-gray-900 mb-4">Pricing</h2>
+                        <h2 className="text-base font-semibold text-gray-900 mb-4">Detailed Pricing</h2>
+                        {(() => {
+                            const breakdown = generatePricingBreakdown(carpark);
+                            return (
+                                <div className="space-y-6">
+                                    {/* Motor Car */}
+                                    <div>
+                                        <h3 className="font-medium text-gray-900 flex items-center gap-2 mb-2">
+                                            <span>🚗</span> Motor Car
+                                        </h3>
+                                        <ul className="list-disc list-inside text-sm text-gray-600 space-y-1">
+                                            {breakdown.car.map((item: string, i: number) => <li key={i}>{item}</li>)}
+                                        </ul>
+                                    </div>
+                                    
+                                    {/* Motorcycle */}
+                                    <div className="border-t border-gray-100 pt-4">
+                                        <h3 className="font-medium text-gray-900 flex items-center gap-2 mb-2">
+                                            <span>🏍️</span> Motorcycle
+                                        </h3>
+                                        <ul className="list-disc list-inside text-sm text-gray-600 space-y-1">
+                                            {breakdown.motorcycle.map((item: string, i: number) => <li key={i}>{item}</li>)}
+                                        </ul>
+                                    </div>
 
-                        <div className="grid grid-cols-2 gap-4 mb-4">
-                            <div>
-                                <p className="text-sm text-gray-600 mb-1">Weekday</p>
-                                <p className="text-xl font-semibold text-gray-900">
-                                    ${carpark.hourlyRate.toFixed(2)}/hr
-                                </p>
-                            </div>
-                            <div>
-                                <p className="text-sm text-gray-600 mb-1">Night Parking</p>
-                                <p className="text-lg font-medium text-gray-900">
-                                    {carpark.nightParking ? 'Available' : 'No'}
-                                </p>
-                            </div>
-                        </div>
-
-                        <div className="border-t border-gray-200 pt-4 space-y-2">
-                            <p className="text-sm text-gray-600">Estimated cost</p>
-                            <div className="flex justify-between text-sm">
-                                <span className="text-gray-600">1 hour</span>
-                                <span className="font-medium text-gray-900">
-                                    ~${carpark.hourlyRate.toFixed(2)}
-                                </span>
-                            </div>
-                            <div className="flex justify-between text-sm">
-                                <span className="text-gray-600">2 hours</span>
-                                <span className="font-medium text-gray-900">
-                                    ~${(carpark.hourlyRate * 2).toFixed(2)}
-                                </span>
-                            </div>
-                            <div className="flex justify-between text-sm">
-                                <span className="text-gray-600">4 hours</span>
-                                <span className="font-medium text-gray-900">
-                                    ~${(carpark.hourlyRate * 4).toFixed(2)}
-                                </span>
-                            </div>
-                        </div>
+                                    {/* Heavy Vehicle */}
+                                    <div className="border-t border-gray-100 pt-4">
+                                        <h3 className="font-medium text-gray-900 flex items-center gap-2 mb-2">
+                                            <span>🚚</span> Heavy Vehicle
+                                        </h3>
+                                        <ul className="list-disc list-inside text-sm text-gray-600 space-y-1">
+                                            {breakdown.heavy.map((item: string, i: number) => <li key={i}>{item}</li>)}
+                                        </ul>
+                                    </div>
+                                </div>
+                            );
+                        })()}
                     </div>
 
                     {/* Weather Section */}

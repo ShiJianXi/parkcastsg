@@ -27,6 +27,17 @@ _DATA_DIR = Path(__file__).parent
 _HDB_UNSHELTERED_TYPES: frozenset[str] = frozenset({"SURFACE CAR PARK"})
 
 
+# HDB Pricing Rule Sets
+_CENTRAL_CARPARKS: frozenset[str] = frozenset({
+    "ACB", "BBB", "BRB1", "CY", "DUXM", "HLM", "KAB", "KAM", 
+    "KAS", "PRM", "SLS", "SR1", "SR2", "TPM", "UCS", "WCB"
+})
+
+_PEAK_CARPARKS: frozenset[str] = frozenset({
+    "ACB", "CY", "SE21", "SE22", "SE24", "MP14", "MP15", 
+    "MP16", "HG9", "HG9T", "HG15", "HG16"
+})
+
 def _is_sheltered_hdb(cp_type: str, basement: str) -> bool:
     """Return True if this HDB carpark type is covered/sheltered.
 
@@ -71,6 +82,10 @@ def _load() -> dict[str, dict]:
                 "parking_system": row.get("type_of_parking_system", ""),
                 "night_parking": row.get("night_parking", "NO") == "YES",
                 "car_park_type": cp_type,
+                "free_parking": row.get("free_parking", "NO"),
+                "short_term_parking": row.get("short_term_parking", "NO"),
+                "is_central": cp_no in _CENTRAL_CARPARKS,
+                "is_peak": cp_no in _PEAK_CARPARKS,
             }
 
     return lookup
