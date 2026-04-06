@@ -13,6 +13,7 @@ from dotenv import load_dotenv
 from app.data.carpark_lookup import CARPARK_LOOKUP
 from app.data.lta_carpark_lookup import LTA_CARPARK_LOOKUP
 from app.data.lta_rates_lookup import lookup_rate
+from app.data.supplemental_carpark_lookup import SUPPLEMENTAL_CARPARK_LOOKUP, LTA_DEVELOPMENT_NAMES, SUPPLEMENTAL_ID_LOOKUP
 
 router = APIRouter()
 
@@ -42,12 +43,12 @@ class CarparkAvailability(BaseModel):
     lng: float
     available_lots: int
     total_lots: int
-    crowd_level: str  # "low" | "medium" | "high" | "full"
+    crowd_level: str  # "low" | "medium" | "high" | "full" | "unknown"
     is_sheltered: bool
     distance: int  # metres from the query point
     night_parking: bool
     car_park_type: str  # e.g. "MULTI-STOREY CAR PARK", "SURFACE CAR PARK"
-    source: str  # "hdb" | "lta"
+    source: str  # "hdb" | "lta" | "supplemental"
     # Rate fields — populated for LTA carparks when CarparkRates.csv has a match;
     # None means "no data available" (will render as "see operator" in the UI).
     weekdays_rate_1: str | None = None
@@ -421,6 +422,95 @@ async def _get_lta_carpark(
     )
 
 
+def _fetch_supplemental_carparks(lat: float, lng: float, radius: int) -> list[CarparkAvailability]:
+    """Return carparks from supplemental_carparks.csv within radius.
+
+    These are carparks sourced from CarparkRates.csv that are not tracked by
+    the HDB or LTA DataMall datasets.  Because no live-availability API exists
+    for them, crowd_level is set to "unknown" and available/total lots are 0.
+
+    Any entry whose normalised name appears in ``LTA_DEVELOPMENT_NAMES`` is
+    suppressed to avoid showing a duplicate once lta_carparks.csv is populated.
+    """
+    results: list[CarparkAvailability] = []
+
+    for norm_name, info in SUPPLEMENTAL_CARPARK_LOOKUP.items():
+        if norm_name in LTA_DEVELOPMENT_NAMES:
+            continue  # already covered by the LTA DataMall dataset
+
+        dist = _haversine(lat, lng, info["lat"], info["lng"])
+        if dist > radius:
+            continue
+
+        name = info["name"]
+        rates = lookup_rate(name) or {}
+        cp_id = f"SUPP_{norm_name.replace(' ', '_').upper()}"
+
+        results.append(
+            CarparkAvailability(
+                id=cp_id,
+                name=name,
+                address=name,
+                lat=info["lat"],
+                lng=info["lng"],
+                available_lots=0,
+                total_lots=0,
+                crowd_level="unknown",
+                is_sheltered=True,  # unknown; default True for commercial mall carparks
+                distance=round(dist),
+                night_parking=True,  # unknown; default True to avoid hiding options
+                car_park_type="CAR PARK",
+                source="supplemental",
+                weekdays_rate_1=_rate_field(rates.get("weekdays_rate_1", "")),
+                weekdays_rate_2=_rate_field(rates.get("weekdays_rate_2", "")),
+                saturday_rate=_rate_field(rates.get("saturday_rate", "")),
+                sunday_ph_rate=_rate_field(rates.get("sunday_ph_rate", "")),
+            )
+        )
+
+    return results
+
+
+def _get_supplemental_carpark(
+    carpark_id: str, lat: float | None, lng: float | None
+) -> CarparkAvailability:
+    """Return a supplemental carpark by its SUPP_-prefixed ID."""
+    norm_name = SUPPLEMENTAL_ID_LOOKUP.get(carpark_id)
+    if norm_name is None:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Supplemental carpark '{carpark_id}' not found",
+        )
+
+    info = SUPPLEMENTAL_CARPARK_LOOKUP[norm_name]
+    name = info["name"]
+    rates = lookup_rate(name) or {}
+
+    dist = 0.0
+    if lat is not None and lng is not None:
+        dist = _haversine(lat, lng, info["lat"], info["lng"])
+
+    return CarparkAvailability(
+        id=carpark_id,
+        name=name,
+        address=name,
+        lat=info["lat"],
+        lng=info["lng"],
+        available_lots=0,
+        total_lots=0,
+        crowd_level="unknown",
+        is_sheltered=True,
+        distance=round(dist),
+        night_parking=True,
+        car_park_type="CAR PARK",
+        source="supplemental",
+        weekdays_rate_1=_rate_field(rates.get("weekdays_rate_1", "")),
+        weekdays_rate_2=_rate_field(rates.get("weekdays_rate_2", "")),
+        saturday_rate=_rate_field(rates.get("saturday_rate", "")),
+        sunday_ph_rate=_rate_field(rates.get("sunday_ph_rate", "")),
+    )
+
+
 # ---------------------------------------------------------------------------
 # Endpoints
 # ---------------------------------------------------------------------------
@@ -429,15 +519,17 @@ async def _get_lta_carpark(
 @router.get("/carparks/nearby", response_model=list[CarparkAvailability])
 async def get_nearby_carparks(lat: float, lng: float, radius: int = 500):
     """
-    Return HDB and LTA carparks within `radius` metres of (lat, lng) with live
-    availability. LTA results require LTA_API_KEY to be configured; if it is
-    absent the endpoint returns HDB-only results.
+    Return HDB, LTA, and supplemental carparks within `radius` metres of
+    (lat, lng) with live availability where available.  LTA results require
+    LTA_API_KEY to be configured; if absent the endpoint returns HDB + any
+    supplemental results only.
     """
     hdb_results, lta_results = await asyncio.gather(
         _fetch_hdb_carparks(lat, lng, radius),
         _fetch_lta_carparks(lat, lng, radius),
     )
-    results = hdb_results + lta_results
+    supplemental_results = _fetch_supplemental_carparks(lat, lng, radius)
+    results = hdb_results + lta_results + supplemental_results
     results.sort(key=lambda x: x.distance)
     return results
 
@@ -448,8 +540,11 @@ async def get_carpark(carpark_id: str, lat: float | None = None, lng: float | No
     Return a single carpark's live availability by ID.
     HDB carparks use their carpark number (e.g. 'ACB').
     LTA carparks use the 'LTA_' prefix (e.g. 'LTA_B0020').
+    Supplemental carparks use the 'SUPP_' prefix.
     """
     normalised = carpark_id.upper()
     if normalised.startswith(LTA_ID_PREFIX):
         return await _get_lta_carpark(normalised, lat, lng)
+    if normalised.startswith("SUPP_"):
+        return _get_supplemental_carpark(normalised, lat, lng)
     return await _get_hdb_carpark(normalised, lat, lng)

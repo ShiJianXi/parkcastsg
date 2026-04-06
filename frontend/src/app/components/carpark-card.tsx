@@ -13,6 +13,8 @@ export function CarparkCard({ carpark, isSelected, showRainIcon, onClick, onView
     const availabilityColor = getAvailabilityColor(carpark.availabilityLevel);
     const availabilityText = getAvailabilityText(carpark);
     const isLta = carpark.source === 'lta';
+    const isSupplemental = carpark.source === 'supplemental';
+    const isNonHdb = isLta || isSupplemental;
 
     return (
         <div
@@ -37,7 +39,7 @@ export function CarparkCard({ carpark, isSelected, showRainIcon, onClick, onView
                                 Recommended
                             </span>
                         )}
-                        {isLta && (
+                        {isNonHdb && (
                             <span className="px-2 py-0.5 bg-purple-100 text-purple-700 text-xs font-medium rounded-full whitespace-nowrap">
                                 Non-HDB
                             </span>
@@ -66,7 +68,7 @@ export function CarparkCard({ carpark, isSelected, showRainIcon, onClick, onView
 
                         {/* Price */}
                         <span className="text-sm font-medium text-gray-900">
-                            {isLta
+                            {isNonHdb
                                 ? (carpark.weekdaysRate1 ?? 'Rate varies')
                                 : `~$${carpark.hourlyRate.toFixed(2)}/hr (Might not be accurate as of now)`}
                         </span>

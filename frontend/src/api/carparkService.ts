@@ -18,7 +18,7 @@ export interface NearbyCarpark {
     distance: number; // metres
     night_parking: boolean;
     car_park_type: string;
-    source: 'hdb' | 'lta';
+    source: 'hdb' | 'lta' | 'supplemental';
     // Rate strings from CarparkRates.csv (null = no match found)
     weekdays_rate_1: string | null;
     weekdays_rate_2: string | null;
@@ -70,6 +70,8 @@ function crowdToAvailability(crowd: string): AvailabilityLevel {
             return 'low';
         case 'full':
             return 'full';
+        case 'unknown':
+            return 'unknown';
         default:
             return 'moderate';
     }
@@ -82,6 +84,7 @@ function distanceToWalkingMinutes(distanceMetres: number): number {
 
 export function transformCarpark(raw: NearbyCarpark): Carpark {
     const isLta = raw.source === 'lta';
+    const isSupplemental = raw.source === 'supplemental';
     return {
         id: raw.id,
         name: raw.name,
@@ -92,8 +95,8 @@ export function transformCarpark(raw: NearbyCarpark): Carpark {
         totalLots: raw.total_lots,
         availabilityLevel: crowdToAvailability(raw.crowd_level),
         walkingMinutes: distanceToWalkingMinutes(raw.distance),
-        // LTA/URA rates vary per carpark; HDB uses the standard $0.60/hr rate
-        hourlyRate: isLta ? 0 : 0.60,
+        // LTA/supplemental rates vary per carpark; HDB uses the standard $0.60/hr rate
+        hourlyRate: (isLta || isSupplemental) ? 0 : 0.60,
         isSheltered: raw.is_sheltered,
         carparkType: raw.car_park_type,
         distance: raw.distance,
@@ -103,7 +106,7 @@ export function transformCarpark(raw: NearbyCarpark): Carpark {
         weekdaysRate2: raw.weekdays_rate_2 ?? undefined,
         saturdayRate: raw.saturday_rate ?? undefined,
         sundayPhRate: raw.sunday_ph_rate ?? undefined,
-        // LTA carparks are not marked recommended because rate info may be unknown
-        isRecommended: !isLta && raw.available_lots > 10 && raw.is_sheltered,
+        // Supplemental and LTA carparks are not marked recommended (unknown availability)
+        isRecommended: !isLta && !isSupplemental && raw.available_lots > 10 && raw.is_sheltered,
     };
 }
