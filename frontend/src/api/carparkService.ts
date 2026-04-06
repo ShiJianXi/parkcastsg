@@ -95,8 +95,10 @@ export function transformCarpark(raw: NearbyCarpark): Carpark {
         totalLots: raw.total_lots,
         availabilityLevel: crowdToAvailability(raw.crowd_level),
         walkingMinutes: distanceToWalkingMinutes(raw.distance),
-        // LTA/supplemental rates vary per carpark; HDB uses the standard $0.60/hr rate
-        hourlyRate: (isLta || isSupplemental) ? 0 : 0.60,
+      
+        // LTA/supplemental rates vary per carpark; HDB uses the standard $1.20/hr rate
+        hourlyRate: (isLta || isSupplemental) ? 0 : 1.2,
+
         isSheltered: raw.is_sheltered,
         carparkType: raw.car_park_type,
         distance: raw.distance,
