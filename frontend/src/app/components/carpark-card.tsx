@@ -67,7 +67,7 @@ export function CarparkCard({ carpark, isSelected, showRainIcon, onClick, onView
                         {/* Price */}
                         <span className="text-sm font-medium text-gray-900">
                             {isLta
-                                ? 'Rate varies'
+                                ? (carpark.weekdaysRate1 ?? 'Rate varies')
                                 : `~$${carpark.hourlyRate.toFixed(2)}/hr (Might not be accurate as of now)`}
                         </span>
 

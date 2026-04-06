@@ -18,6 +18,12 @@ export interface Carpark {
     distance: number; // in meters
     nightParking?: boolean;
     source?: 'hdb' | 'lta'; // data source
+    // Parking rates from CarparkRates.csv — only populated for LTA carparks
+    // where a name match was found; undefined means "data not available".
+    weekdaysRate1?: string;
+    weekdaysRate2?: string;
+    saturdayRate?: string;
+    sundayPhRate?: string;
     prediction?: {
         hour1: number;
         hour2: number;

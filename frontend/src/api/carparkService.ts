@@ -19,6 +19,11 @@ export interface NearbyCarpark {
     night_parking: boolean;
     car_park_type: string;
     source: 'hdb' | 'lta';
+    // Rate strings from CarparkRates.csv (null = no match found)
+    weekdays_rate_1: string | null;
+    weekdays_rate_2: string | null;
+    saturday_rate: string | null;
+    sunday_ph_rate: string | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -94,7 +99,11 @@ export function transformCarpark(raw: NearbyCarpark): Carpark {
         distance: raw.distance,
         nightParking: raw.night_parking,
         source: raw.source,
-        // LTA carparks are not marked recommended because rate info is unknown
+        weekdaysRate1: raw.weekdays_rate_1 ?? undefined,
+        weekdaysRate2: raw.weekdays_rate_2 ?? undefined,
+        saturdayRate: raw.saturday_rate ?? undefined,
+        sundayPhRate: raw.sunday_ph_rate ?? undefined,
+        // LTA carparks are not marked recommended because rate info may be unknown
         isRecommended: !isLta && raw.available_lots > 10 && raw.is_sheltered,
     };
 }

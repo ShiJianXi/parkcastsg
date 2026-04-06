@@ -10,6 +10,15 @@ import { getCarparkById, transformCarpark } from '../../api/carparkService';
 import { getWeatherForecast, type WeatherData } from '../../api/weatherService';
 import { LoadingSkeleton } from '../components/loading-skeleton';
 
+function RateRow({ label, value }: { label: string; value: string }) {
+    return (
+        <div className="flex gap-2 text-sm">
+            <span className="text-gray-500 whitespace-nowrap w-32 shrink-0">{label}</span>
+            <span className="text-gray-800">{value}</span>
+        </div>
+    );
+}
+
 export function CarparkDetailPage() {
     const navigate = useNavigate();
     const { id } = useParams();
@@ -264,13 +273,33 @@ export function CarparkDetailPage() {
                         <h2 className="text-base font-semibold text-gray-900 mb-4">Pricing</h2>
 
                         {carpark.source === 'lta' ? (
-                            <div className="p-3 bg-purple-50 rounded-lg border border-purple-100">
-                                <p className="text-sm text-purple-800 font-medium mb-1">Rate information unavailable</p>
-                                <p className="text-xs text-purple-600">
-                                    This is a non-HDB carpark managed by URA or LTA. Parking rates vary
-                                    — check signage on-site or the operator's website for current rates.
-                                </p>
-                            </div>
+                            carpark.weekdaysRate1 ? (
+                                <div className="space-y-3">
+                                    <div className="grid grid-cols-1 gap-2">
+                                        <RateRow label="Weekdays" value={carpark.weekdaysRate1} />
+                                        {carpark.weekdaysRate2 && (
+                                            <RateRow label="Weekdays (2nd band)" value={carpark.weekdaysRate2} />
+                                        )}
+                                        {carpark.saturdayRate && (
+                                            <RateRow label="Saturday" value={carpark.saturdayRate} />
+                                        )}
+                                        {carpark.sundayPhRate && (
+                                            <RateRow label="Sun / PH" value={carpark.sundayPhRate} />
+                                        )}
+                                    </div>
+                                    <p className="text-xs text-gray-500 mt-2">
+                                        Source: LTA DataMall · Rates may change — verify on-site.
+                                    </p>
+                                </div>
+                            ) : (
+                                <div className="p-3 bg-purple-50 rounded-lg border border-purple-100">
+                                    <p className="text-sm text-purple-800 font-medium mb-1">Rate information unavailable</p>
+                                    <p className="text-xs text-purple-600">
+                                        This is a non-HDB carpark managed by URA or LTA. Parking rates vary
+                                        — check signage on-site or the operator's website for current rates.
+                                    </p>
+                                </div>
+                            )
                         ) : (
                             <>
                                 <div className="grid grid-cols-2 gap-4 mb-4">

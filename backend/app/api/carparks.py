@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 import os
 from math import atan2, cos, radians, sin, sqrt
 
@@ -10,6 +11,7 @@ from pydantic import BaseModel
 from dotenv import load_dotenv
 
 from app.data.carpark_lookup import CARPARK_LOOKUP
+from app.data.lta_rates_lookup import lookup_rate
 
 router = APIRouter()
 
@@ -45,6 +47,12 @@ class CarparkAvailability(BaseModel):
     night_parking: bool
     car_park_type: str  # e.g. "MULTI-STOREY CAR PARK", "SURFACE CAR PARK"
     source: str  # "hdb" | "lta"
+    # Rate fields — populated for LTA carparks when CarparkRates.csv has a match;
+    # None means "no data available" (will render as "see operator" in the UI).
+    weekdays_rate_1: str | None = None
+    weekdays_rate_2: str | None = None
+    saturday_rate: str | None = None
+    sunday_ph_rate: str | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -95,6 +103,12 @@ def _parse_lta_location(location: str) -> tuple[float, float] | None:
         return float(parts[0]), float(parts[1])
     except ValueError:
         return None
+
+
+def _rate_field(value: str) -> str | None:
+    """Return the rate string, or None if the field contains no useful data."""
+    v = value.strip()
+    return None if v in ("-", "") else v
 
 
 # ---------------------------------------------------------------------------
@@ -190,7 +204,7 @@ async def _fetch_lta_carparks(lat: float, lng: float, radius: int) -> list[Carpa
     fails, so the calling endpoint degrades gracefully to HDB-only results.
     """
     if not LTA_API_KEY:
-        print("LTA_API_KEY not configured; skipping LTA carparks")
+        logging.warning("LTA_API_KEY not configured; skipping LTA carparks")
         return []
 
     try:
@@ -243,6 +257,7 @@ async def _fetch_lta_carparks(lat: float, lng: float, radius: int) -> list[Carpa
         if prefixed_id in groups:
             groups[prefixed_id]["available_lots"] += available
         else:
+            rates = lookup_rate(development) or {}
             groups[prefixed_id] = {
                 "id": prefixed_id,
                 "name": development or f"Carpark {cp_id}",
@@ -256,6 +271,10 @@ async def _fetch_lta_carparks(lat: float, lng: float, radius: int) -> list[Carpa
                 "night_parking": True,  # LTA API does not expose night-parking info; default to True to avoid hiding options
                 "car_park_type": "CAR PARK",
                 "source": "lta",
+                "weekdays_rate_1": _rate_field(rates.get("weekdays_rate_1", "")),
+                "weekdays_rate_2": _rate_field(rates.get("weekdays_rate_2", "")),
+                "saturday_rate": _rate_field(rates.get("saturday_rate", "")),
+                "sunday_ph_rate": _rate_field(rates.get("sunday_ph_rate", "")),
             }
 
     return [
@@ -369,6 +388,8 @@ async def _get_lta_carpark(
     if lat is not None and lng is not None:
         dist = _haversine(lat, lng, cp_lat, cp_lng)
 
+    rates = lookup_rate(development) or {}
+
     return CarparkAvailability(
         id=carpark_id,
         name=development or f"Carpark {raw_id}",
@@ -383,6 +404,10 @@ async def _get_lta_carpark(
         night_parking=True,  # LTA API does not expose night-parking info; default to True
         car_park_type="CAR PARK",
         source="lta",
+        weekdays_rate_1=_rate_field(rates.get("weekdays_rate_1", "")),
+        weekdays_rate_2=_rate_field(rates.get("weekdays_rate_2", "")),
+        saturday_rate=_rate_field(rates.get("saturday_rate", "")),
+        sunday_ph_rate=_rate_field(rates.get("sunday_ph_rate", "")),
     )
 
 
