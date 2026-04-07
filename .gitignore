@@ -36,10 +36,14 @@ Thumbs.db
 skills-lock.json
 .agents
 *.pyc
-backend/venv/
-backend/parkcastsg/
 
-# AWS
+
 backend/global-bundle.pem
 backend/*.pem
+__pycache__/
+backend/.venv/
+venv/
+.venv/
+env/
+backend/parkcastsg/
 
