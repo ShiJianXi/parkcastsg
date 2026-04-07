@@ -20,7 +20,9 @@ import {
 } from '../../api/carparkService'
 import { getWeatherForecast, type WeatherData } from '../../api/weatherService'
 import { LoadingSkeleton } from '../components/loading-skeleton'
-
+import { NavigationChooserModal } from '../components/navigation-chooser-modal';
+import { generatePricingBreakdown } from '../utils/pricingEngine';
+        
 type PredictionHorizon = 15 | 30 | 60
 
 interface PredictionRow {
@@ -65,6 +67,7 @@ export function CarparkDetailPage() {
   const { id } = useParams()
   const [searchParams] = useSearchParams()
   const [showPremiumModal, setShowPremiumModal] = useState(false)
+  const [showNavModal, setShowNavModal] = useState(false);
   const [isSaved, setIsSaved] = useState(false)
 
   // Dynamic states
@@ -76,7 +79,7 @@ export function CarparkDetailPage() {
   const [predictionError, setPredictionError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-
+  
   useEffect(() => {
     if (!id) return
 
@@ -403,7 +406,6 @@ export function CarparkDetailPage() {
                 Predicted Availability by Lot Type
               </h2>
             </div>
-
             {prediction && (
               <p className='text-xs text-gray-500 mb-4'>
                 Generated at{' '}
@@ -471,49 +473,46 @@ export function CarparkDetailPage() {
               </div>
             )}
           </div>
-
+          
           {/* Pricing Section */}
-          <div className='bg-white rounded-[12px] p-6 shadow-sm border border-gray-200'>
-            <h2 className='text-base font-semibold text-gray-900 mb-4'>
-              Pricing
-            </h2>
+                    <div className="bg-white rounded-[12px] p-6 shadow-sm border border-gray-200">
+                        <h2 className="text-base font-semibold text-gray-900 mb-4">Detailed Pricing</h2>
+                        {(() => {
+                            const breakdown = generatePricingBreakdown(carpark);
+                            return (
+                                <div className="space-y-6">
+                                    {/* Motor Car */}
+                                    <div>
+                                        <h3 className="font-medium text-gray-900 flex items-center gap-2 mb-2">
+                                            <span>🚗</span> Motor Car
+                                        </h3>
+                                        <ul className="list-disc list-inside text-sm text-gray-600 space-y-1">
+                                            {breakdown.car.map((item: string, i: number) => <li key={i}>{item}</li>)}
+                                        </ul>
+                                    </div>
+                                    
+                                    {/* Motorcycle */}
+                                    <div className="border-t border-gray-100 pt-4">
+                                        <h3 className="font-medium text-gray-900 flex items-center gap-2 mb-2">
+                                            <span>🏍️</span> Motorcycle
+                                        </h3>
+                                        <ul className="list-disc list-inside text-sm text-gray-600 space-y-1">
+                                            {breakdown.motorcycle.map((item: string, i: number) => <li key={i}>{item}</li>)}
+                                        </ul>
+                                    </div>
 
-            <div className='grid grid-cols-2 gap-4 mb-4'>
-              <div>
-                <p className='text-sm text-gray-600 mb-1'>Weekday</p>
-                <p className='text-xl font-semibold text-gray-900'>
-                  ${carpark.hourlyRate.toFixed(2)}/hr
-                </p>
-              </div>
-              <div>
-                <p className='text-sm text-gray-600 mb-1'>Night Parking</p>
-                <p className='text-lg font-medium text-gray-900'>
-                  {carpark.nightParking ? 'Available' : 'No'}
-                </p>
-              </div>
-            </div>
-
-            <div className='border-t border-gray-200 pt-4 space-y-2'>
-              <p className='text-sm text-gray-600'>Estimated cost</p>
-              <div className='flex justify-between text-sm'>
-                <span className='text-gray-600'>1 hour</span>
-                <span className='font-medium text-gray-900'>
-                  ~${carpark.hourlyRate.toFixed(2)}
-                </span>
-              </div>
-              <div className='flex justify-between text-sm'>
-                <span className='text-gray-600'>2 hours</span>
-                <span className='font-medium text-gray-900'>
-                  ~${(carpark.hourlyRate * 2).toFixed(2)}
-                </span>
-              </div>
-              <div className='flex justify-between text-sm'>
-                <span className='text-gray-600'>4 hours</span>
-                <span className='font-medium text-gray-900'>
-                  ~${(carpark.hourlyRate * 4).toFixed(2)}
-                </span>
-              </div>
-            </div>
+                                    {/* Heavy Vehicle */}
+                                    <div className="border-t border-gray-100 pt-4">
+                                        <h3 className="font-medium text-gray-900 flex items-center gap-2 mb-2">
+                                            <span>🚚</span> Heavy Vehicle
+                                        </h3>
+                                        <ul className="list-disc list-inside text-sm text-gray-600 space-y-1">
+                                            {breakdown.heavy.map((item: string, i: number) => <li key={i}>{item}</li>)}
+                                        </ul>
+                                    </div>
+                                </div>
+                            );
+                        })()}
           </div>
 
           {/* Weather Section */}
@@ -573,46 +572,49 @@ export function CarparkDetailPage() {
           </div>
         </div>
       </div>
-
+      
       {/* Sticky Bottom Action Bar */}
-      <div className='fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 px-4 py-4 shadow-lg'>
-        <div className='max-w-2xl mx-auto flex gap-3'>
-          <Button
-            onClick={() =>
-              window.open(
-                `https://maps.google.com/?q=${carpark.lat},${carpark.lng}`,
-                '_blank',
-              )
-            }
-            className='flex-1 bg-[#1A56DB] hover:bg-[#1444b8] text-white rounded-lg py-6'
-          >
-            <Navigation className='w-4 h-4 mr-2' />
-            Navigate Here
-          </Button>
-          <Button
-            onClick={() => setIsSaved(!isSaved)}
-            variant='outline'
-            className={`px-6 py-6 rounded-lg ${
-              isSaved ? 'bg-pink-50 border-pink-300 text-pink-600' : ''
-            }`}
-          >
-            <Heart className={`w-5 h-5 ${isSaved ? 'fill-current' : ''}`} />
-          </Button>
-          <Button
-            onClick={() => setShowPremiumModal(true)}
-            variant='outline'
-            className='px-6 py-6 rounded-lg border-amber-300 text-amber-600 hover:bg-amber-50'
-          >
-            <Bell className='w-5 h-5' />
-          </Button>
-        </div>
-      </div>
+            <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 px-4 py-4 shadow-lg">
+                <div className="max-w-2xl mx-auto flex gap-3">
+                    <Button
+                        onClick={() => setShowNavModal(true)}
+                        className="flex-1 bg-[#1A56DB] hover:bg-[#1444b8] text-white rounded-lg py-6"
+                    >
+                        <Navigation className="w-4 h-4 mr-2" />
+                        Navigate Here
+                    </Button>
+                    <Button
+                        onClick={() => setIsSaved(!isSaved)}
+                        variant="outline"
+                        className={`px-6 py-6 rounded-lg ${isSaved ? 'bg-pink-50 border-pink-300 text-pink-600' : ''
+                            }`}
+                    >
+                        <Heart className={`w-5 h-5 ${isSaved ? 'fill-current' : ''}`} />
+                    </Button>
+                    <Button
+                        onClick={() => setShowPremiumModal(true)}
+                        variant="outline"
+                        className="px-6 py-6 rounded-lg border-amber-300 text-amber-600 hover:bg-amber-50"
+                    >
+                        <Bell className="w-5 h-5" />
+                    </Button>
+                </div>
+            </div>
 
-      {/* Premium Modal */}
-      <PremiumModal
-        isOpen={showPremiumModal}
-        onClose={() => setShowPremiumModal(false)}
-      />
-    </>
-  )
+            {/* Navigation Chooser Modal */}
+            <NavigationChooserModal
+                isOpen={showNavModal}
+                onClose={() => setShowNavModal(false)}
+                lat={carpark.lat}
+                lng={carpark.lng}
+                address={carpark.address}
+            />
+
+            {/* Premium Modal */}
+            <PremiumModal
+                isOpen={showPremiumModal}
+                onClose={() => setShowPremiumModal(false)}
+            />
+        </>
+    );
 }

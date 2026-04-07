@@ -3,6 +3,7 @@ import { MapContainer, TileLayer, Marker, Popup, Circle, useMap } from 'react-le
 import L from 'leaflet';
 import { type Carpark, getAvailabilityColor } from '../data/carparks';
 import { type Coordinates } from '../../api/geocode';
+import { calculateLiveRates } from '../utils/pricingEngine';
 import 'leaflet/dist/leaflet.css';
 
 interface CarparkMapProps {
@@ -103,6 +104,7 @@ function CarparkMarker({ carpark, isSelected, onPinClick }: { carpark: Carpark; 
     }, [isSelected]);
 
     const color = getAvailabilityColor(carpark.availabilityLevel);
+    const livePricing = calculateLiveRates(carpark);
 
     return (
         <Marker
@@ -116,8 +118,18 @@ function CarparkMarker({ carpark, isSelected, onPinClick }: { carpark: Carpark; 
             <Popup>
                 <div className="text-sm">
                     <p className="font-semibold mb-1">{carpark.name}</p>
-                    <p className="text-gray-600 mb-1">{carpark.availableLots} / {carpark.totalLots} lots available</p>
-                    <p className="text-gray-600">~${carpark.hourlyRate.toFixed(2)}/hr</p>
+                    <p className="text-gray-600 mb-2">{carpark.availableLots} / {carpark.totalLots} lots available</p>
+                    <div className="space-y-1">
+                        <p className="text-gray-700 font-medium flex items-center gap-2">
+                            <span>🚗</span> {livePricing.car}
+                        </p>
+                        <p className="text-gray-700 font-medium flex items-center gap-2">
+                            <span>🏍️</span> {livePricing.motorcycle}
+                        </p>
+                        <p className="text-gray-700 font-medium flex items-center gap-2">
+                            <span>🚚</span> {livePricing.heavy}
+                        </p>
+                    </div>
                 </div>
             </Popup>
         </Marker>
