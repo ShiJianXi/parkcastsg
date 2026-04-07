@@ -1,0 +1,5 @@
+# .ebignore
+parkcastsg/
+venv/
+__pycache__/
+*.pyc
