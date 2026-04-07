@@ -331,10 +331,12 @@ def predict_carpark(carpark_number: str):
 
     except HTTPException:
         raise
-    except Exception:
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
         api_error(
             status_code=500,
             error_code="INTERNAL_PREDICTION_ERROR",
-            message="An internal error occurred during prediction.",
+            message=f"An internal error occurred during prediction: {str(e)}",
             carpark_number=carpark_number,
         )
