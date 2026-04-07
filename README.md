@@ -1,6 +1,6 @@
 # ParkCastSG
 
-Real-time Singapore carpark finder. Search by destination or postal code, view live carpark availability from multiple sources (HDB, LTA DataMall, and supplemental), filter by shelter/availability, and see results on an interactive map.
+Real-time Singapore carpark finder. Search by destination or postal code, view live carpark availability from multiple sources (HDB, LTA DataMall, and supplemental), filter by shelter/availability, and see results on an interactive map. It also features a machine-learning backend that predicts carpark availability for up to an hour in advance!
 
 ---
 
@@ -14,7 +14,7 @@ Real-time Singapore carpark finder. Search by destination or postal code, view l
 │  - OneMap geocoding     │        │  - Loads HDB + LTA CSVs     │
 │  - Leaflet map          │        │  - Calls data.gov.sg API    │
 │  - Sort / filter        │        │  - Calls LTA DataMall API   │
-│  - Live pricing engine  │        │  - Haversine distance filter │
+│  - Live pricing engine  │        │  - ML Availability Prediction│
 └─────────────────────────┘        └──────────────────────────────┘
           │                                       │
           │ geocoding                      HDB live availability
@@ -55,6 +55,8 @@ The backend merges three carpark data sources:
 | Uvicorn | 0.34 | ASGI server |
 | httpx | 0.28 | Async HTTP client (calls data.gov.sg + LTA DataMall) |
 | python-dotenv | — | Environment variable loading |
+| LightGBM & Scikit-learn| — | Machine Learning Engine |
+| psycopg2-binary | — | PostgreSQL Database driver |
 
 ---
 
@@ -66,19 +68,23 @@ parkcastsg/
 │   ├── app/
 │   │   ├── main.py              # FastAPI app, CORS config
 │   │   ├── api/
-│   │   │   └── carparks.py      # /carparks/nearby + /carparks/{id} endpoints (HDB + LTA + supplemental)
+│   │   │   ├── carparks.py      # /carparks/nearby + /carparks/{id} endpoints (HDB + LTA + supplemental)
+│   │   │   └── prediction.py    # /carparks/{id}/prediction ML endpoint
 │   │   ├── core/
 │   │   │   └── config.py        # Settings (DB env vars)
-│   │   └── data/
-│   │       ├── carpark_lookup.py            # HDB: merges CSVs into in-memory dict
-│   │       ├── hdb_clean_coords.csv         # HDB carparks → WGS84 lat/lng
-│   │       ├── HDBCarparkInformation.csv    # HDB carparks → address, type, flags
-│   │       ├── lta_carpark_lookup.py        # LTA: static lookup from lta_carparks.csv
-│   │       ├── lta_carparks.csv             # LTA carpark geometry (from data pipeline)
-│   │       ├── lta_rates_lookup.py          # Matches LTA carpark names to CarparkRates.csv
-│   │       ├── supplemental_carpark_lookup.py  # Supplemental: carparks in rates CSV only
-│   │       ├── supplemental_carparks.csv    # Supplemental carpark geometry
-│   │       └── CarparkRates.csv             # Parking rates for LTA/supplemental carparks
+│   │   ├── data/
+│   │   │   ├── carpark_lookup.py            # HDB: merges CSVs into in-memory dict
+│   │   │   ├── hdb_clean_coords.csv         # HDB carparks → WGS84 lat/lng
+│   │   │   ├── HDBCarparkInformation.csv    # HDB carparks → address, type, flags
+│   │   │   ├── lta_carpark_lookup.py        # LTA: static lookup from lta_carparks.csv
+│   │   │   ├── lta_carparks.csv             # LTA carpark geometry (from data pipeline)
+│   │   │   ├── lta_rates_lookup.py          # Matches LTA carpark names to CarparkRates.csv
+│   │   │   ├── supplemental_carpark_lookup.py  # Supplemental: carparks in rates CSV only
+│   │   │   ├── supplemental_carparks.csv    # Supplemental carpark geometry
+│   │   │   ├── CarparkRates.csv             # Parking rates for LTA/supplemental carparks
+│   │   │   └── static_carpark_mapping.csv   # Static ML dataset metadata
+│   │   └── models/
+│   │       └── *.pkl            # Pretrained LightGBM model files
 │   ├── requirements.txt
 │   └── .env.example             # Copy to .env and fill in LTA_API_KEY / DB credentials
 │
@@ -121,7 +127,11 @@ You need **two terminals** — one for the backend, one for the frontend.
 - Python 3.12 or later
 - pip
 
-#### 1. Create a virtual environment
+#### 1. Configure the RDS Certificates
+Download the RDS certificate bundle and place it inside your `backend/` folder under the name `global-bundle.pem`:
+`https://truststore.pki.rds.amazonaws.com/global/global-bundle.pem`
+
+#### 2. Create a virtual environment
 
 > **Important:** Always use a virtual environment. Running `uvicorn` without activating the venv will fail with "command not found".
 
@@ -130,7 +140,7 @@ cd backend
 python -m venv venv
 ```
 
-#### 2. Activate the virtual environment
+#### 3. Activate the virtual environment
 
 **Windows (PowerShell):**
 ```powershell
@@ -149,23 +159,24 @@ source venv/bin/activate
 
 Once activated, your prompt will show `(venv)`.
 
-#### 3. Install dependencies
+#### 4. Install dependencies
 
 ```bash
 pip install -r requirements.txt
 ```
 
-#### 4. Configure environment variables
+#### 5. Configure environment variables
 
 ```bash
 cp .env.example .env
-# Edit .env — set LTA_API_KEY for LTA DataMall carparks (optional but recommended)
-# LTA_API_KEY=<your key from https://datamall.lta.gov.sg/content/datamall/en/request-for-api.html>
 ```
+Edit `.env` with your DB credentials for the PostgreSQL ML predictions to work correctly. Ensure there are no invisible trailing spaces following your `DB_HOST` and credentials!
+Set `LTA_API_KEY` for LTA DataMall carparks (optional but recommended).
+`LTA_API_KEY=<your key from https://datamall.lta.gov.sg/content/datamall/en/request-for-api.html>`
 
-The backend works without a `.env` file or `LTA_API_KEY`. When the key is absent, LTA DataMall carparks are skipped gracefully and only HDB + supplemental results are returned.
+The backend works without `LTA_API_KEY`. When the key is absent, LTA DataMall carparks are skipped gracefully and only HDB + supplemental results are returned.
 
-#### 5. Start the backend server
+#### 6. Start the backend server
 
 ```bash
 uvicorn app.main:app --reload
@@ -225,7 +236,7 @@ The app is served via CloudFront at **https://dmxr5wa316ehu.cloudfront.net**, wh
 
 | CloudFront path pattern | Origin | What it serves |
 |---|---|---|
-| `/api/*` | AWS Elastic Beanstalk | FastAPI backend (carparks, weather) |
+| `/api/*` | AWS Elastic Beanstalk | FastAPI backend (carparks, weather, predictions) |
 | `/health` | AWS Elastic Beanstalk | Health check |
 | `/docs*` | AWS Elastic Beanstalk | Swagger UI |
 | `/openapi.json` | AWS Elastic Beanstalk | OpenAPI schema |
@@ -240,6 +251,8 @@ HTTPS is required at the CloudFront layer to enable the browser Geolocation API.
 > - Backend (Elastic Beanstalk): http://parkcast-api-env.eba-9ixmryjr.ap-southeast-1.elasticbeanstalk.com/docs
 > - These bypass CloudFront and should not be used in production; they are listed here for debugging purposes only.
 
+> **Note on Elastic Beanstalk:** The Elastic Beanstalk image now includes `libgomp1` within its `Dockerfile` which is strictly required to run LightGBM machine learning models in Alpine/Linux environments.
+
 ---
 
 ## API Endpoints
@@ -249,6 +262,7 @@ HTTPS is required at the CloudFront layer to enable the browser Geolocation API.
 | `GET` | `/health` | Health check |
 | `GET` | `/api/v1/carparks/nearby` | Carparks within radius of a lat/lng (HDB + LTA + supplemental) |
 | `GET` | `/api/v1/carparks/{id}` | Single carpark live availability (prefix `LTA_` for LTA carparks) |
+| `GET` | `/api/v1/carparks/{id}/prediction` | Predicted future availability utilizing ML |
 
 ### `/api/v1/carparks/nearby` parameters
 
@@ -258,6 +272,122 @@ HTTPS is required at the CloudFront layer to enable the browser Geolocation API.
 | `lng` | float | required | Longitude (WGS84) |
 | `radius` | int | 500 | Search radius in metres |
 
+### `/api/v1/carparks/{id}/prediction` response format
+```json
+{
+  "carpark_number": "HE12",
+  "generated_at": "2026-04-05T12:34:56+08:00",
+  "predictions": [
+    {
+      "horizon_minutes": 15,
+      "by_lot_type": [
+        { "lot_type": "C", "predicted_available_lots": 123.0, "predicted_occupancy_rate": 0.41 }
+      ]
+    }
+  ]
+}
+```
+---
+
+## ML Prediction
+
+### What Was Added
+
+| Area | Update |
+|---|---|
+| New API | Added `GET /api/v1/carparks/{carpark_number}/prediction` |
+| Prediction models | Added bundled LightGBM models for `15`, `30`, and `60` minute horizons |
+| Model metadata | Added `feature_cols.pkl` and `categorical_cols.pkl` |
+| Static lookup data | Added `backend/app/data/static_carpark_mapping.csv` |
+| Backend config | Added DB port, SSL, CORS, environment-aware `.env` loading, and model path settings |
+| Deployment support | Updated `backend/Dockerfile` to install `libgomp1` for LightGBM runtime support |
+| Python deps | Added `pandas`, `joblib`, `lightgbm`, `scikit-learn`, and `psycopg2-binary` |
+
+### What The New Endpoint Does
+
+The frontend can send a request to:
+
+```text
+GET /api/v1/carparks/{carpark_number}/prediction
+```
+
+The backend will then:
+
+1. read the latest live lot records for the requested carpark from PostgreSQL
+2. look up static metadata from `static_carpark_mapping.csv`
+3. fetch the latest available weather record for the mapped area
+4. build model features from the current lot data, area, weather, timestamp, and coordinates
+5. run three prediction models for `15`, `30`, and `60` minute horizons
+6. return predictions grouped by horizon and by lot type
+
+### Response Format
+
+Example response:
+
+```json
+{
+  "carpark_number": "HE12",
+  "generated_at": "2026-04-05T12:34:56+08:00",
+  "predictions": [
+    {
+      "horizon_minutes": 15,
+      "by_lot_type": [
+        {
+          "lot_type": "C",
+          "predicted_available_lots": 123.0,
+          "predicted_occupancy_rate": 0.41
+        }
+      ]
+    },
+    {
+      "horizon_minutes": 30,
+      "by_lot_type": [
+        {
+          "lot_type": "C",
+          "predicted_available_lots": 118.0,
+          "predicted_occupancy_rate": 0.43
+        }
+      ]
+    },
+    {
+      "horizon_minutes": 60,
+      "by_lot_type": [
+        {
+          "lot_type": "C",
+          "predicted_available_lots": 110.0,
+          "predicted_occupancy_rate": 0.47
+        }
+      ]
+    }
+  ]
+}
+```
+
+### Error Handling
+
+The endpoint currently returns structured API errors through FastAPI `HTTPException`.
+
+Common cases include:
+
+| Status | Error code | Meaning |
+|---|---|---|
+| `404` | `MAPPING_NOT_FOUND` | No static mapping exists for the requested `carpark_number` |
+| `404` | `AVAILABILITY_NOT_FOUND` | No latest live availability row was found in PostgreSQL |
+| `404` | `WEATHER_NOT_FOUND` | No matching weather record was found for the mapped area |
+| `422` | `INSUFFICIENT_LOTS_INFO` | The returned lot rows are not valid enough for prediction |
+| `500` | `INTERNAL_PREDICTION_ERROR` | An unexpected internal prediction error occurred |
+
+Example error response:
+
+```json
+{
+  "detail": {
+    "error_code": "AVAILABILITY_NOT_FOUND",
+    "message": "No availability data found for this carpark.",
+    "carpark_number": "HE12"
+  }
+}
+```
 ---
 
 ## How the Search Works
@@ -298,3 +428,5 @@ HTTPS is required at the CloudFront layer to enable the browser Geolocation API.
 | No LTA carparks showing | Set `LTA_API_KEY` in the backend `.env` file (get key from LTA DataMall) |
 | Frontend shows API error | Ensure backend is running on port 8000 and `VITE_API_BASE_URL` is set in `.env.local` |
 | CORS error in browser | Set `CORS_ALLOW_ORIGINS=https://dmxr5wa316ehu.cloudfront.net` in the Elastic Beanstalk environment variables |
+| `asyncio.exceptions.CancelledError` or `WatchFiles detected changes in venv` | Uvicorn is reloading due to virtual environment cache files changing. Make sure to run with `--reload-dir app --reload-exclude venv`. |
+| `password authentication failed for user "postgres"` in Prediction API | Make sure your `.env` is fully populated with no trailing spaces, and `DB_HOST` is pointing to the RDS endpoint, not `localhost`. |
