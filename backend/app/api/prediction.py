@@ -428,7 +428,6 @@ def predict_carpark(carpark_number: str):
             )
             predictions.append(prediction_item)
 
-        print(f"DEBUG: Predictions generated for {carpark_number}")
         return {
             "carpark_number": carpark_number,
             "generated_at": generated_at,

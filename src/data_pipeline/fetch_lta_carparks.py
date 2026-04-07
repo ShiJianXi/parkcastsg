@@ -115,6 +115,7 @@ def build_static_lookup(entries: list[dict]) -> list[dict]:
             "development": entry.get("Development", "").strip(),
             "lat": lat,
             "lng": lng,
+            "area": "",  # populated manually after geocoding; kept empty by default
         }
 
     rows = sorted(seen.values(), key=lambda r: r["carpark_id"])
@@ -129,7 +130,7 @@ def build_static_lookup(entries: list[dict]) -> list[dict]:
 
 def save_csv(rows: list[dict], path: Path) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    fieldnames = ["carpark_id", "development", "lat", "lng"]
+    fieldnames = ["carpark_id", "development", "lat", "lng", "area"]
     with open(path, "w", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(f, fieldnames=fieldnames)
         writer.writeheader()

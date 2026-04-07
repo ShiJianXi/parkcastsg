@@ -115,12 +115,9 @@ function isShortTermParkingAvailable(spec: string | undefined, now: Date): boole
 }
 
 function parseHourBoundary(timeStr: string): number | null {
-  const match = timeStr.toLowerCase().match(/^([0-9]+)(am|pm)$/);
-  if (!match) return null;
-  let h = parseInt(match[1], 10);
-  if (match[2] === 'pm' && h < 12) h += 12;
-  if (match[2] === 'am' && h === 12) h = 0;
-  return h;
+  const parsed = parseTimeString(timeStr.trim());
+  if (!parsed) return null;
+  return parsed.hour;
 }
 
 /**
@@ -207,6 +204,10 @@ export function parseTextRateEquivalent(rate: string | undefined, currentHour: n
   // $X per entry
   match = lower.match(/\$([0-9.]+).*?per entry/);
   if (match) return parseFloat(match[1]);
+
+  // $X /min or $X per min — convert to hourly
+  match = lower.match(/\$([0-9.]+)\s*(?:per\s*min(?:ute)?|\/\s*min(?:ute)?)/);
+  if (match) return parseFloat(match[1]) * 60;
 
   // Simple fallback finding any $ amount
   match = lower.match(/\$([0-9.]+)/);
