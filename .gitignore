@@ -41,3 +41,5 @@ backend/parkcastsg/
 
 # AWS
 backend/global-bundle.pem
+backend/*.pem
+
