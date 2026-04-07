@@ -33,6 +33,12 @@ _HDB_AGENCIES: frozenset[str] = frozenset({"HDB"})
 # ---------------------------------------------------------------------------
 
 
+class LotTypeAvailability(BaseModel):
+    lot_type: str
+    available_lots: int
+    total_lots: int
+
+
 class CarparkAvailability(BaseModel):
     id: str
     name: str
@@ -41,6 +47,7 @@ class CarparkAvailability(BaseModel):
     lng: float
     available_lots: int
     total_lots: int
+    lot_types: list[LotTypeAvailability]
     crowd_level: str  # "low" | "medium" | "high" | "full" | "unknown"
     is_sheltered: bool
     distance: int  # metres from the query point
@@ -105,6 +112,21 @@ def _rate_field(value: str) -> str | None:
     return None if v in ("-", "") else v
 
 
+def _normalize_lot_types(cp_info_list: list[dict]) -> list[LotTypeAvailability]:
+    """
+    Preserve the upstream lot-type breakdown so the frontend can show
+    availability per transport category instead of only a single summed total.
+    """
+    return [
+        LotTypeAvailability(
+            lot_type=str(item.get("lot_type", "")),
+            available_lots=int(item.get("lots_available", 0)),
+            total_lots=int(item.get("total_lots", 0)),
+        )
+        for item in cp_info_list
+    ]
+
+
 # ---------------------------------------------------------------------------
 # Data-source helpers
 # ---------------------------------------------------------------------------
@@ -165,8 +187,8 @@ async def _fetch_hdb_carparks(lat: float, lng: float, radius: int) -> list[Carpa
         if dist > radius:
             continue
 
-        # Sum across all lot types (C = Car, Y = Motorcycle, H = Heavy)
         cp_info_list: list[dict] = cp.get("carpark_info", [])
+        lot_types = _normalize_lot_types(cp_info_list)
         available = sum(int(x.get("lots_available", 0)) for x in cp_info_list)
         total = sum(int(x.get("total_lots", 0)) for x in cp_info_list)
 
@@ -179,6 +201,7 @@ async def _fetch_hdb_carparks(lat: float, lng: float, radius: int) -> list[Carpa
                 lng=info["lng"],
                 available_lots=available,
                 total_lots=total,
+                lot_types=lot_types,
                 crowd_level=_crowd_level(available, total),
                 is_sheltered=info["is_sheltered"],
                 distance=round(dist),
@@ -297,7 +320,7 @@ async def _fetch_lta_carparks(lat: float, lng: float, radius: int) -> list[Carpa
 async def _get_hdb_carpark(
     carpark_id: str, lat: float | None, lng: float | None
 ) -> CarparkAvailability:
-    info = CARPARK_LOOKUP.get(carpark_id)
+    info = CARPARK_LOOKUP.get(carpark_id.upper())
     if info is None:
         raise HTTPException(status_code=404, detail=f"Carpark '{carpark_id}' not found")
 
@@ -309,18 +332,19 @@ async def _get_hdb_carpark(
         raise HTTPException(status_code=502, detail=f"HDB API error: {exc}") from exc
 
     carpark_data: list[dict] = resp.json()["items"][0]["carpark_data"]
-    cp = next((c for c in carpark_data if c.get("carpark_number") == carpark_id), None)
+    cp = next(
+        (c for c in carpark_data if c.get("carpark_number") == carpark_id.upper()), None
+    )
     if cp is None:
         raise HTTPException(
             status_code=502,
             detail=f"HDB API did not return availability for carpark '{carpark_id}'",
         )
 
-    available = 0
-    total = 0
-    for lot in cp.get("carpark_info", []):
-        available += int(lot.get("lots_available", 0))
-        total += int(lot.get("total_lots", 0))
+    cp_info_list: list[dict] = cp.get("carpark_info", [])
+    lot_types = _normalize_lot_types(cp_info_list)
+    available = sum(int(lot.get("lots_available", 0)) for lot in cp_info_list)
+    total = sum(int(lot.get("total_lots", 0)) for lot in cp_info_list)
 
     dist = 0
     if lat is not None and lng is not None:
@@ -334,6 +358,7 @@ async def _get_hdb_carpark(
         lng=info["lng"],
         available_lots=available,
         total_lots=total,
+        lot_types=lot_types,
         crowd_level=_crowd_level(available, total),
         is_sheltered=info["is_sheltered"],
         distance=round(dist),

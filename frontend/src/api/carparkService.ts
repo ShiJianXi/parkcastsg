@@ -1,36 +1,58 @@
-import type { Carpark, AvailabilityLevel } from '../app/data/carparks';
-import { getNumericLiveCarRate } from '../app/utils/pricingEngine';
+import type { Carpark, AvailabilityLevel } from '../app/data/carparks'
+import { getNumericLiveCarRate } from '../app/utils/pricingEngine'
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8000';
+const API_BASE = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8000'
 
 // ---------------------------------------------------------------------------
 // Raw shape returned by the backend
 // ---------------------------------------------------------------------------
+export interface LotTypeAvailability {
+  lot_type: string
+  available_lots: number
+  total_lots: number
+}
+
+export interface PredictionLotTypeValue {
+  lot_type: string
+  predicted_available_lots: number
+  predicted_occupancy_rate: number
+}
+
+export interface PredictionSnapshot {
+  horizon_minutes: 15 | 30 | 60
+  by_lot_type: PredictionLotTypeValue[]
+}
+
+export interface CarparkPredictionResponse {
+  carpark_number: string
+  generated_at: string
+  predictions: PredictionSnapshot[]
+}
 
 export interface NearbyCarpark {
-    id: string;
-    name: string;
-    address: string;
-    lat: number;
-    lng: number;
-    available_lots: number;
-    total_lots: number;
-    crowd_level: 'low' | 'medium' | 'high' | 'full' | 'unknown';
-    is_sheltered: boolean;
-    distance: number; // metres
-    night_parking: boolean;
-    car_park_type: string;
-    source: 'hdb' | 'lta' | 'supplemental';
-    // Rate strings from CarparkRates.csv (null = no match found; only for LTA/supplemental)
-    weekdays_rate_1: string | null;
-    weekdays_rate_2: string | null;
-    saturday_rate: string | null;
-    sunday_ph_rate: string | null;
-    // HDB pricing metadata (populated for HDB carparks; defaults for others)
-    free_parking: string;
-    short_term_parking: string;
-    is_central: boolean;
-    is_peak: boolean;
+  id: string
+  name: string
+  address: string
+  lat: number
+  lng: number
+  available_lots: number
+  total_lots: number
+  lot_types: LotTypeAvailability[]
+  crowd_level: 'low' | 'medium' | 'high' | 'full' | 'unknown'
+  is_sheltered: boolean
+  distance: number // metres
+  night_parking: boolean
+  car_park_type: string
+  source: 'hdb' | 'lta' | 'supplemental'
+  weekdays_rate_1: string | null
+  weekdays_rate_2: string | null
+  saturday_rate: string | null
+  sunday_ph_rate: string | null
+  free_parking: string
+  short_term_parking: string
+  is_central: boolean
+  is_peak: boolean
+}
 }
 
 // ---------------------------------------------------------------------------
@@ -38,29 +60,44 @@ export interface NearbyCarpark {
 // ---------------------------------------------------------------------------
 
 export async function getNearbyCarparks(
-    lat: number,
-    lng: number,
-    radius: number
+  lat: number,
+  lng: number,
+  radius: number,
 ): Promise<NearbyCarpark[]> {
-    const url = `${API_BASE}/api/v1/carparks/nearby?lat=${lat}&lng=${lng}&radius=${radius}`;
-    const res = await fetch(url);
-    if (!res.ok) {
-        throw new Error(`Carpark API error ${res.status}`);
-    }
-    return res.json();
+  const url = `${API_BASE}/api/v1/carparks/nearby?lat=${lat}&lng=${lng}&radius=${radius}`
+  const res = await fetch(url)
+  if (!res.ok) {
+    throw new Error(`Carpark API error ${res.status}`)
+  }
+  return res.json()
 }
 
-export async function getCarparkById(id: string, lat?: number, lng?: number): Promise<NearbyCarpark> {
-    let url = `${API_BASE}/api/v1/carparks/${id}`;
-    if (lat !== undefined && lng !== undefined) {
-        url += `?lat=${lat}&lng=${lng}`;
-    }
-    
-    const res = await fetch(url);
-    if (!res.ok) {
-        throw new Error(`Carpark API error ${res.status}`);
-    }
-    return res.json();
+export async function getCarparkById(
+  id: string,
+  lat?: number,
+  lng?: number,
+): Promise<NearbyCarpark> {
+  let url = `${API_BASE}/api/v1/carparks/${id}`
+  if (lat !== undefined && lng !== undefined) {
+    url += `?lat=${lat}&lng=${lng}`
+  }
+
+  const res = await fetch(url)
+  if (!res.ok) {
+    throw new Error(`Carpark API error ${res.status}`)
+  }
+  return res.json()
+}
+
+export async function getCarparkPrediction(
+  carparkNumber: string,
+): Promise<CarparkPredictionResponse> {
+  const url = `${API_BASE}/api/v1/carparks/${carparkNumber}/prediction`
+  const res = await fetch(url)
+  if (!res.ok) {
+    throw new Error(`Prediction API error ${res.status}`)
+  }
+  return res.json()
 }
 
 // ---------------------------------------------------------------------------
@@ -85,8 +122,8 @@ function crowdToAvailability(crowd: string): AvailabilityLevel {
 }
 
 function distanceToWalkingMinutes(distanceMetres: number): number {
-    // Average walking speed ~80 m/min
-    return Math.max(1, Math.round(distanceMetres / 80));
+  // Average walking speed ~80 m/min
+  return Math.max(1, Math.round(distanceMetres / 80))
 }
 
 export function transformCarpark(raw: NearbyCarpark): Carpark {
@@ -100,6 +137,7 @@ export function transformCarpark(raw: NearbyCarpark): Carpark {
         lng: raw.lng,
         availableLots: raw.available_lots,
         totalLots: raw.total_lots,
+        lotTypes: raw.lot_types ? raw.lot_types.map((lot) => ({ lotType: lot.lot_type, availableLots: lot.available_lots, totalLots: lot.total_lots })) : [],
         availabilityLevel: crowdToAvailability(raw.crowd_level),
         walkingMinutes: distanceToWalkingMinutes(raw.distance),
 
@@ -128,5 +166,4 @@ export function transformCarpark(raw: NearbyCarpark): Carpark {
     // and render numerically in the CarparkMap popup.
     cp.hourlyRate = getNumericLiveCarRate(cp);
 
-    return cp;
-}
+    return cp;}

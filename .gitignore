@@ -1,0 +1,50 @@
+<<<<<<< HEAD
+=======
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+dist-ssr/
+
+# Vite cache
+.vite/
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# OS files
+.DS_Store
+Thumbs.db
+
+skills-lock.json
+.agents
+*.pyc
+
+backend/venv/
+backend/global-bundle.pem
+backend/*.pem
+__pycache__/
+backend/.venv/
+venv/
+.venv/
+env/
+backend/parkcastsg/

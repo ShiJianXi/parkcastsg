@@ -6,7 +6,7 @@ import os
 # Load .env once here, before any module reads env vars
 load_dotenv()
 
-from app.api import carparks, weather
+from app.api import carparks, weather, prediction
 
 cors_allow_origins_env = os.getenv("CORS_ALLOW_ORIGINS")
 if cors_allow_origins_env:
@@ -36,3 +36,4 @@ def health_check():
 
 app.include_router(carparks.router, prefix="/api/v1")
 app.include_router(weather.router, prefix="/api/v1")
+app.include_router(prediction.router, prefix="/api/v1")

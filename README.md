@@ -72,17 +72,17 @@ parkcastsg/
 │   │   │   └── prediction.py    # /carparks/{id}/prediction ML endpoint
 │   │   ├── core/
 │   │   │   └── config.py        # Settings (DB env vars)
-│   │   ├── data/
-│   │   │   ├── carpark_lookup.py            # HDB: merges CSVs into in-memory dict
-│   │   │   ├── hdb_clean_coords.csv         # HDB carparks → WGS84 lat/lng
-│   │   │   ├── HDBCarparkInformation.csv    # HDB carparks → address, type, flags
-│   │   │   ├── lta_carpark_lookup.py        # LTA: static lookup from lta_carparks.csv
-│   │   │   ├── lta_carparks.csv             # LTA carpark geometry (from data pipeline)
-│   │   │   ├── lta_rates_lookup.py          # Matches LTA carpark names to CarparkRates.csv
-│   │   │   ├── supplemental_carpark_lookup.py  # Supplemental: carparks in rates CSV only
-│   │   │   ├── supplemental_carparks.csv    # Supplemental carpark geometry
-│   │   │   ├── CarparkRates.csv             # Parking rates for LTA/supplemental carparks
-│   │   │   └── static_carpark_mapping.csv   # Static ML dataset metadata
+│   │   └── data/
+│   │       ├── carpark_lookup.py            # HDB: merges CSVs into in-memory dict
+│   │       ├── hdb_clean_coords.csv         # HDB carparks → WGS84 lat/lng
+│   │       ├── HDBCarparkInformation.csv    # HDB carparks → address, type, flags
+│   │       ├── lta_carpark_lookup.py        # LTA: static lookup from lta_carparks.csv
+│   │       ├── lta_carparks.csv             # LTA carpark geometry (from data pipeline)
+│   │       ├── lta_rates_lookup.py          # Matches LTA carpark names to CarparkRates.csv
+│   │       ├── supplemental_carpark_lookup.py  # Supplemental: carparks in rates CSV only
+│   │       ├── supplemental_carparks.csv    # Supplemental carpark geometry
+│   │       ├── CarparkRates.csv             # Parking rates for LTA/supplemental carparks
+│   │       └── static_carpark_mapping.csv   # Static ML dataset metadata
 │   │   └── models/
 │   │       └── *.pkl            # Pretrained LightGBM model files
 │   ├── requirements.txt
@@ -399,8 +399,6 @@ Example error response:
 5. Backend cross-references each carpark against the static lookup tables (HDB CSV, LTA CSV, supplemental CSV)
 6. Results filtered by Haversine distance and merged from all three sources, sorted nearest-first
 7. Frontend renders the carpark list and map; HDB carparks show live calculated pricing, LTA/supplemental show rates from `CarparkRates.csv` where available
-
-> **Note:** The HDB dataset only covers **public HDB carparks** in residential estates. Commercial zones like Marina Bay and Orchard Road have few/no HDB carparks but may have LTA DataMall carparks — use a **2km radius** for those areas and ensure `LTA_API_KEY` is configured.
 
 ---
 
