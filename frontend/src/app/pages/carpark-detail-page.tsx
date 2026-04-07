@@ -486,7 +486,7 @@ export function CarparkDetailPage() {
             ) : (
               <div className='rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-600'>
                 {id?.startsWith('SUPP_')
-                  ? 'ML-based predictions are currently only available for HDB and LTA managed carparks. We are working on expanding our model to support other sources.'
+                  ? 'Predictions are not available for this carpark. Live lot availability data is required for forecasting, and is currently only provided by the HDB and LTA APIs.'
                   : 'Prediction data is not available yet for this carpark.'}
               </div>
             )}
