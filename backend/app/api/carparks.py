@@ -189,7 +189,10 @@ async def _fetch_hdb_carparks(lat: float, lng: float, radius: int) -> list[Carpa
                 short_term_parking=info.get("short_term_parking", "WHOLE DAY"),
                 is_central=info.get("is_central", False),
                 is_peak=info.get("is_peak", False),
+            )
+        )
 
+    return results
 
 async def _fetch_lta_carparks(lat: float, lng: float, radius: int) -> list[CarparkAvailability]:
     """Fetch non-HDB carparks from LTA DataMall within radius.
