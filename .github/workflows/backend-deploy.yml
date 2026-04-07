@@ -45,8 +45,9 @@ jobs:
       - name: Prepare EB deployment bundle (backend only)
         run: |
           mkdir deploy
-          cp -r backend/* deploy/
-          cp backend/Dockerfile deploy/
+          cp -a backend/. deploy/
+          # cp -r backend/* deploy/
+          # cp backend/Dockerfile deploy/
 
       - name: Initialize EB
         working-directory: deploy
