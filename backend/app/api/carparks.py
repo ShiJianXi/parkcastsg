@@ -307,6 +307,7 @@ async def _fetch_lta_carparks(lat: float, lng: float, radius: int) -> list[Carpa
                 night_parking=True,  # LTA API does not expose night-parking info; default to True
                 car_park_type="CAR PARK",
                 source="lta",
+                lot_types=[],
                 weekdays_rate_1=_rate_field(rates.get("weekdays_rate_1", "")),
                 weekdays_rate_2=_rate_field(rates.get("weekdays_rate_2", "")),
                 saturday_rate=_rate_field(rates.get("saturday_rate", "")),
@@ -443,6 +444,7 @@ async def _get_lta_carpark(
         night_parking=True,  # LTA API does not expose night-parking info; default to True
         car_park_type="CAR PARK",
         source="lta",
+        lot_types=[],
         weekdays_rate_1=_rate_field(rates.get("weekdays_rate_1", "")),
         weekdays_rate_2=_rate_field(rates.get("weekdays_rate_2", "")),
         saturday_rate=_rate_field(rates.get("saturday_rate", "")),
@@ -489,6 +491,7 @@ def _fetch_supplemental_carparks(lat: float, lng: float, radius: int) -> list[Ca
                 night_parking=True,  # unknown; default True to avoid hiding options
                 car_park_type="CAR PARK",
                 source="supplemental",
+                lot_types=[],
                 weekdays_rate_1=_rate_field(rates.get("weekdays_rate_1", "")),
                 weekdays_rate_2=_rate_field(rates.get("weekdays_rate_2", "")),
                 saturday_rate=_rate_field(rates.get("saturday_rate", "")),
@@ -532,6 +535,7 @@ def _get_supplemental_carpark(
         night_parking=True,
         car_park_type="CAR PARK",
         source="supplemental",
+        lot_types=[],
         weekdays_rate_1=_rate_field(rates.get("weekdays_rate_1", "")),
         weekdays_rate_2=_rate_field(rates.get("weekdays_rate_2", "")),
         saturday_rate=_rate_field(rates.get("saturday_rate", "")),
