@@ -117,15 +117,22 @@ export function CarparkDetailPage() {
         // Entering this page only happens after "View full details",
         // so fetching prediction here ties the request to that action.
         const rawDataPromise = getCarparkById(id, lat, lng)
-        const rawPredictionPromise = getCarparkPrediction(id).catch(
-          (predictionErr) => {
-            console.error('Prediction fetch error:', predictionErr)
-            if (isMounted) {
-              setPredictionError('Prediction data is temporarily unavailable.')
-            }
-            return null
-          },
-        )
+        
+        // Predictions are currently supported for HDB and LTA (live) carparks.
+        // Supplemental carparks do not have live data and are excluded.
+        const canPredict = !id.startsWith('SUPP_')
+        
+        const rawPredictionPromise = canPredict 
+          ? getCarparkPrediction(id).catch(
+              (predictionErr) => {
+                console.error('Prediction fetch error:', predictionErr)
+                if (isMounted) {
+                  setPredictionError('Prediction data is temporarily unavailable.')
+                }
+                return null
+              },
+            )
+          : Promise.resolve(null)
 
         // Await the carpark details
         const rawData = await rawDataPromise
@@ -478,7 +485,9 @@ export function CarparkDetailPage() {
               </div>
             ) : (
               <div className='rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-600'>
-                Prediction data is not available yet for this carpark.
+                {id?.startsWith('SUPP_')
+                  ? 'ML-based predictions are currently only available for HDB and LTA managed carparks. We are working on expanding our model to support other sources.'
+                  : 'Prediction data is not available yet for this carpark.'}
               </div>
             )}
           </div>

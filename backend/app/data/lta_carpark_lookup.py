@@ -36,6 +36,7 @@ def _load() -> dict[str, dict]:
                     "development": row.get("development", "").strip(),
                     "lat": float(row["lat"]),
                     "lng": float(row["lng"]),
+                    "area": row.get("area", "Central").strip(),
                 }
             except (ValueError, KeyError):
                 continue

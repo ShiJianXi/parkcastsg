@@ -53,7 +53,6 @@ export interface NearbyCarpark {
   is_central: boolean
   is_peak: boolean
 }
-}
 
 // ---------------------------------------------------------------------------
 // API calls
@@ -166,4 +165,5 @@ export function transformCarpark(raw: NearbyCarpark): Carpark {
     // and render numerically in the CarparkMap popup.
     cp.hourlyRate = getNumericLiveCarRate(cp);
 
-    return cp;}
+    return cp
+}
