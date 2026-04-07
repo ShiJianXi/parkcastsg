@@ -136,10 +136,9 @@ def predict_one(record: dict, model: Any) -> dict:
 
 def get_static_mapping(carpark_number: str) -> dict[str, Any]:
     norm_id = carpark_number.strip().upper()
-    print(f"DEBUG: get_static_mapping for '{norm_id}' (len: {len(norm_id)})")
-    
+
     # LTA Carparks
-    if "LTA_" in norm_id:
+    if norm_id.startswith(LTA_ID_PREFIX):
         raw_id = norm_id[len("LTA_"):]
         info = LTA_CARPARK_LOOKUP.get(raw_id)
         if not info:

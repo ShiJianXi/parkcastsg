@@ -144,13 +144,13 @@ def main() -> None:
         else:
             lat, lng = coords
             print(f"    ✓ {lat:.6f}, {lng:.6f}")
-            results.append({"name": name, "lat": lat, "lng": lng})
+            results.append({"name": name, "lat": lat, "lng": lng, "source": "OneMap"})
         # Be polite to OneMap — stay safely under 5 req/s
         time.sleep(0.25)
 
     _OUTPUT_CSV.parent.mkdir(parents=True, exist_ok=True)
     with open(_OUTPUT_CSV, "w", newline="", encoding="utf-8") as f:
-        writer = csv.DictWriter(f, fieldnames=["name", "lat", "lng"])
+        writer = csv.DictWriter(f, fieldnames=["name", "lat", "lng", "source"])
         writer.writeheader()
         writer.writerows(results)
 
