@@ -367,6 +367,21 @@ export function generatePricingBreakdown(carpark: Carpark) {
     ? `⚠️ Short-term parking is ONLY allowed during: ${carpark.shortTermParking}`
     : "Short-term parking allowed Whole Day.";
 
+  // --- NON-HDB RAW RATE DISPLAY ---
+  if (carpark.source === 'lta' || carpark.source === 'supplemental') {
+    return {
+      car: [
+        shortTermMsg,
+        carpark.weekdaysRate1 ? `Daily: ${carpark.weekdaysRate1}` : null,
+        carpark.weekdaysRate2 ? `Daily (Alt): ${carpark.weekdaysRate2}` : null,
+        carpark.saturdayRate ? `Saturday: ${carpark.saturdayRate}` : null,
+        carpark.sundayPhRate ? `Sunday & PH: ${carpark.sundayPhRate}` : null,
+      ].filter((line): line is string => line !== null),
+      motorcycle: ["Rate varies. Please see operator's signage."],
+      heavy: ["Rate varies. Please see operator's signage."]
+    };
+  }
+
   breakdown.car.push(shortTermMsg);
   breakdown.motorcycle.push(shortTermMsg);
   breakdown.heavy.push(shortTermMsg);
