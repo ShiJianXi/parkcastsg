@@ -103,8 +103,8 @@ export function transformCarpark(raw: NearbyCarpark): Carpark {
         availabilityLevel: crowdToAvailability(raw.crowd_level),
         walkingMinutes: distanceToWalkingMinutes(raw.distance),
 
-        // LTA/supplemental rates vary per carpark; use Infinity so they never
-        // float to the top of a "cheapest" sort. HDB rate is overridden below.
+        // Rates will be accurately populated from `getNumericLiveCarRate` below based on the current hour.
+        // We set a temporary fallback here if getNumericLiveCarRate fails to parse complex text.
         hourlyRate: (isLta || isSupplemental) ? Number.POSITIVE_INFINITY : 1.20,
 
         isSheltered: raw.is_sheltered,
@@ -124,10 +124,9 @@ export function transformCarpark(raw: NearbyCarpark): Carpark {
         isRecommended: !isLta && !isSupplemental && raw.available_lots > 10 && raw.is_sheltered,
     };
 
-    // Assign accurate live numeric rate for HDB carparks (used for sorting)
-    if (!isLta && !isSupplemental) {
-        cp.hourlyRate = getNumericLiveCarRate(cp);
-    }
+    // Assign accurate live numeric rate for all carparks so they sort correctly
+    // and render numerically in the CarparkMap popup.
+    cp.hourlyRate = getNumericLiveCarRate(cp);
 
     return cp;
 }
