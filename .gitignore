@@ -38,3 +38,6 @@ skills-lock.json
 *.pyc
 backend/venv/
 backend/parkcastsg/
+
+# AWS
+backend/global-bundle.pem
