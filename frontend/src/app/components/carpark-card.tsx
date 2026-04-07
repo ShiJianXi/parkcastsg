@@ -13,6 +13,9 @@ interface CarparkCardProps {
 export function CarparkCard({ carpark, isSelected, showRainIcon, onClick, onViewDetails }: CarparkCardProps) {
     const availabilityColor = getAvailabilityColor(carpark.availabilityLevel);
     const availabilityText = getAvailabilityText(carpark);
+    const isLta = carpark.source === 'lta';
+    const isSupplemental = carpark.source === 'supplemental';
+    const isNonHdb = isLta || isSupplemental;
 
     return (
         <div
@@ -37,6 +40,11 @@ export function CarparkCard({ carpark, isSelected, showRainIcon, onClick, onView
                                 Recommended
                             </span>
                         )}
+                        {isNonHdb && (
+                            <span className="px-2 py-0.5 bg-purple-100 text-purple-700 text-xs font-medium rounded-full whitespace-nowrap">
+                                Non-HDB
+                            </span>
+                        )}
                     </div>
 
                     {/* Address */}
@@ -59,25 +67,31 @@ export function CarparkCard({ carpark, isSelected, showRainIcon, onClick, onView
                         {/* Walking Distance */}
                         <span className="text-sm text-gray-600 border-r border-gray-300 pr-4">{carpark.walkingMinutes} min walk</span>
 
-                        {/* Price (3 Vehicles) */}
-                        <div className="flex items-center gap-3 text-sm font-medium text-gray-900">
-                            {(() => {
-                                const prices = calculateLiveRates(carpark);
-                                return (
-                                    <>
-                                        <div className="flex items-center gap-1" title="Motor Car">
-                                            <span>🚗</span> {prices.car}
-                                        </div>
-                                        <div className="flex items-center gap-1" title="Motorcycle">
-                                            <span>🏍️</span> {prices.motorcycle}
-                                        </div>
-                                        <div className="flex items-center gap-1" title="Heavy Vehicle">
-                                            <span>🚚</span> {prices.heavy}
-                                        </div>
-                                    </>
-                                );
-                            })()}
-                        </div>
+                        {/* Price */}
+                        {isNonHdb ? (
+                            <span className="text-sm font-medium text-gray-900">
+                                {carpark.weekdaysRate1 ?? 'Rate varies'}
+                            </span>
+                        ) : (
+                            <div className="flex items-center gap-3 text-sm font-medium text-gray-900">
+                                {(() => {
+                                    const prices = calculateLiveRates(carpark);
+                                    return (
+                                        <>
+                                            <div className="flex items-center gap-1" title="Motor Car">
+                                                <span>🚗</span> {prices.car}
+                                            </div>
+                                            <div className="flex items-center gap-1" title="Motorcycle">
+                                                <span>🏍️</span> {prices.motorcycle}
+                                            </div>
+                                            <div className="flex items-center gap-1" title="Heavy Vehicle">
+                                                <span>🚚</span> {prices.heavy}
+                                            </div>
+                                        </>
+                                    );
+                                })()}
+                            </div>
+                        )}
 
                         {/* Rain Icon */}
                         {showRainIcon && carpark.isSheltered && (

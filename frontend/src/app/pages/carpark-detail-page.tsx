@@ -62,6 +62,15 @@ function PredictionSectionSkeleton() {
   )
 }
 
+function RateRow({ label, value }: { label: string; value: string }) {
+    return (
+        <div className="flex gap-2 text-sm">
+            <span className="text-gray-500 whitespace-nowrap w-32 shrink-0">{label}</span>
+            <span className="text-gray-800">{value}</span>
+        </div>
+    );
+}
+
 export function CarparkDetailPage() {
   const navigate = useNavigate()
   const { id } = useParams()
@@ -108,15 +117,22 @@ export function CarparkDetailPage() {
         // Entering this page only happens after "View full details",
         // so fetching prediction here ties the request to that action.
         const rawDataPromise = getCarparkById(id, lat, lng)
-        const rawPredictionPromise = getCarparkPrediction(id).catch(
-          (predictionErr) => {
-            console.error('Prediction fetch error:', predictionErr)
-            if (isMounted) {
-              setPredictionError('Prediction data is temporarily unavailable.')
-            }
-            return null
-          },
-        )
+        
+        // Predictions are currently supported for HDB and LTA (live) carparks.
+        // Supplemental carparks do not have live data and are excluded.
+        const canPredict = !id.startsWith('SUPP_')
+        
+        const rawPredictionPromise = canPredict 
+          ? getCarparkPrediction(id).catch(
+              (predictionErr) => {
+                console.error('Prediction fetch error:', predictionErr)
+                if (isMounted) {
+                  setPredictionError('Prediction data is temporarily unavailable.')
+                }
+                return null
+              },
+            )
+          : Promise.resolve(null)
 
         // Await the carpark details
         const rawData = await rawDataPromise
@@ -469,7 +485,9 @@ export function CarparkDetailPage() {
               </div>
             ) : (
               <div className='rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-600'>
-                Prediction data is not available yet for this carpark.
+                {id?.startsWith('SUPP_')
+                  ? 'Predictions are not available for this carpark. Live lot availability data is required for forecasting, and is currently only provided by the HDB and LTA APIs.'
+                  : 'Prediction data is not available yet for this carpark.'}
               </div>
             )}
           </div>

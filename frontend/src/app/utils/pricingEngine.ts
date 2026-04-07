@@ -114,6 +114,121 @@ function isShortTermParkingAvailable(spec: string | undefined, now: Date): boole
   return true;
 }
 
+function parseHourBoundary(timeStr: string): number | null {
+  const parsed = parseTimeString(timeStr.trim());
+  if (!parsed) return null;
+  return parsed.hour;
+}
+
+/**
+ * Attempts to parse arbitrary text-based SGD pricing strings 
+ * (e.g. from CarparkRates.csv) into numerical hourly equivalents.
+ * Segment checking ensures we only process the rate block that belongs to the current hour.
+ */
+export function parseTextRateEquivalent(rate: string | undefined, currentHour: number): number | null {
+  if (!rate || rate === '-' || rate.toLowerCase() === 'no') return null;
+  
+  let lower = rate.toLowerCase();
+
+  // Try to segment by newline or semicolon if there are multiple parts
+  const rawSegments = lower.split(/\n|;/).map(s => s.trim()).filter(s => s);
+  const activeSegments = [];
+
+  for (const segment of rawSegments) {
+     const timeWindowMatch = segment.match(/([0-9]+(?:am|pm))\s*-\s*([0-9]+(?:am|pm))/i) || 
+                             segment.match(/([0-9]{4})\s*-\s*([0-9]{4})/i);
+     const aftMatch = segment.match(/aft(?:er)?\s*([0-9]+(?:am|pm))/i);
+     
+     let inWindow = true; // default true if no explicit time window is assigned
+
+     if (timeWindowMatch) {
+        const startMatch = timeWindowMatch[1];
+        const endMatch = timeWindowMatch[2];
+        const startH = parseHourBoundary(startMatch) ?? parseInt(startMatch.slice(0, 2), 10);
+        const endH = parseHourBoundary(endMatch) ?? parseInt(endMatch.slice(0, 2), 10);
+        
+        if (!isNaN(startH) && !isNaN(endH)) {
+            if (startH <= endH) {
+               inWindow = currentHour >= startH && currentHour < endH;
+            } else { // wraps past midnight e.g. 5pm-7am
+               inWindow = currentHour >= startH || currentHour < endH;
+            }
+        }
+     } else if (aftMatch) {
+         const startH = parseHourBoundary(aftMatch[1]);
+         if (startH !== null) {
+             inWindow = currentHour >= startH;
+         }
+     }
+     
+     if (inWindow) {
+         activeSegments.push(segment);
+     }
+  }
+  
+  if (activeSegments.length > 0) {
+     lower = activeSegments.join(" ");
+  }
+
+  // Free checks
+  if (lower.includes('free') && (lower.includes('daily') || !/\d/.test(lower))) {
+    return 0.0;
+  }
+
+  let match: RegExpMatchArray | null;
+
+  // $X for 1st hr (Placed FIRST so base rate is extracted)
+  match = lower.match(/\$([0-9.]+).*?1st(?:\s?[0-9])?\s?hr/);
+  if (match) return parseFloat(match[1]);
+
+  // $X per hr
+  match = lower.match(/\$([0-9.]+)\s(?:per|\/)\s?(?:hr|hour)/);
+  if (match) return parseFloat(match[1]);
+
+  // $X per ½ hr -> X * 2
+  match = lower.match(/\$([0-9.]+)\s(?:per|\/)\s?½\s?hr/);
+  if (match) return parseFloat(match[1]) * 2;
+
+  // $X / 30 mins -> X * 2
+  match = lower.match(/\$([0-9.]+)\s(?:per|\/)\s?30\s?mins?/);
+  if (match) return parseFloat(match[1]) * 2;
+
+  // $X for sub ½ hr -> X * 2
+  match = lower.match(/\$([0-9.]+).*?sub.*?½\s?hr/);
+  if (match) return parseFloat(match[1]) * 2;
+
+  // $X for sub hr -> X
+  match = lower.match(/\$([0-9.]+).*?sub.*?hr/);
+  if (match) return parseFloat(match[1]);
+
+  // $X per entry
+  match = lower.match(/\$([0-9.]+).*?per entry/);
+  if (match) return parseFloat(match[1]);
+
+  // $X /min or $X per min — convert to hourly
+  match = lower.match(/\$([0-9.]+)\s*(?:per\s*min(?:ute)?|\/\s*min(?:ute)?)/);
+  if (match) return parseFloat(match[1]) * 60;
+
+  // Simple fallback finding any $ amount
+  match = lower.match(/\$([0-9.]+)/);
+  if (match) return parseFloat(match[1]);
+
+  return null;
+}
+
+/**
+ * Determines which text rate string perfectly applies for the current hour.
+ */
+function getTargetTextRate(carpark: Carpark, day: number): string | undefined {
+  if (isSundayOrPublicHoliday(new Date())) {
+    return carpark.sundayPhRate || carpark.weekdaysRate1;
+  }
+  if (day === 6) { // Saturday
+    return carpark.saturdayRate || carpark.weekdaysRate1;
+  }
+  return carpark.weekdaysRate1; // Mon-Fri
+}
+
 /**
  * Calculates current real-time prices for map UI.
  */
@@ -139,6 +254,30 @@ export function calculateLiveRates(carpark: Carpark): LivePrices {
       motorcycle: 'Free*',
       heavy: '$2.40/hr' // Assuming heavy vehicles do not benefit from FPS
     };
+  }
+
+  // --- NON-HDB CUSTOM PARSABLE RATES ---
+  if (carpark.source === 'lta' || carpark.source === 'supplemental') {
+    const rateText = getTargetTextRate(carpark, day);
+    const parsed = parseTextRateEquivalent(rateText, hour);
+
+    if (parsed !== null) {
+        if (parsed === 0) return { car: 'Free*', motorcycle: 'Free*', heavy: 'Free*' };
+        const parsedStr = `$${parsed.toFixed(2)}/hr`;
+        // Expose parsed rate cleanly to map marker
+        return {
+          car: parsedStr,
+          motorcycle: 'No Data',
+          heavy: 'No Data'
+        };
+    } else {
+        // Fallback for empty or truly completely unparsable edgecases.
+        return {
+          car: rateText || 'Rate Varies',
+          motorcycle: 'No Data',
+          heavy: 'No Data'
+        };
+    }
   }
 
   // --- CAR ---
@@ -203,6 +342,7 @@ export function getNumericLiveCarRate(carpark: Carpark): number {
   const str = live.car;
   if (str.includes('Free')) return 0;
   if (str.includes('No Short-Term')) return 999;
+  if (str.includes('Rate Varies')) return 1.20; // safe fallback
 
   const match = str.match(/\$([0-9.]+)/);
   if (match) return parseFloat(match[1]);
@@ -227,6 +367,21 @@ export function generatePricingBreakdown(carpark: Carpark) {
   const shortTermMsg = carpark.shortTermParking && carpark.shortTermParking !== 'WHOLE DAY'
     ? `⚠️ Short-term parking is ONLY allowed during: ${carpark.shortTermParking}`
     : "Short-term parking allowed Whole Day.";
+
+  // --- NON-HDB RAW RATE DISPLAY ---
+  if (carpark.source === 'lta' || carpark.source === 'supplemental') {
+    return {
+      car: [
+        shortTermMsg,
+        carpark.weekdaysRate1 ? `Daily: ${carpark.weekdaysRate1}` : null,
+        carpark.weekdaysRate2 ? `Daily (Alt): ${carpark.weekdaysRate2}` : null,
+        carpark.saturdayRate ? `Saturday: ${carpark.saturdayRate}` : null,
+        carpark.sundayPhRate ? `Sunday & PH: ${carpark.sundayPhRate}` : null,
+      ].filter((line): line is string => line !== null),
+      motorcycle: ["Rate varies. Please see operator's signage."],
+      heavy: ["Rate varies. Please see operator's signage."]
+    };
+  }
 
   breakdown.car.push(shortTermMsg);
   breakdown.motorcycle.push(shortTermMsg);

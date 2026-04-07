@@ -1,4 +1,4 @@
-export type AvailabilityLevel = 'high' | 'moderate' | 'low' | 'full';
+export type AvailabilityLevel = 'high' | 'moderate' | 'low' | 'full' | 'unknown';
 
 export interface Carpark {
     id: string;
@@ -22,6 +22,14 @@ export interface Carpark {
     isRecommended?: boolean;
     distance: number; // in meters
     nightParking?: boolean;
+    source?: 'hdb' | 'lta' | 'supplemental'; // data source
+    // Parking rates from CarparkRates.csv — only populated for LTA/supplemental carparks
+    // where a name match was found; undefined means "data not available".
+    weekdaysRate1?: string;
+    weekdaysRate2?: string;
+    saturdayRate?: string;
+    sundayPhRate?: string;
+    // HDB pricing metadata
     freeParking?: string;
     shortTermParking?: string;
     isCentral?: boolean;
@@ -220,6 +228,8 @@ export function getAvailabilityColor(level: AvailabilityLevel): string {
             return '#F59E0B'; // Amber
         case 'full':
             return '#EF4444'; // Red
+        case 'unknown':
+            return '#9CA3AF'; // Grey
     }
 }
 
@@ -239,6 +249,9 @@ export function formatCarparkType(raw?: string): string {
 }
 
 export function getAvailabilityText(carpark: Carpark): string {
+    if (carpark.availabilityLevel === 'unknown') {
+        return 'Availability not tracked';
+    }
     if (carpark.availabilityLevel === 'full') {
         return 'Full';
     }
@@ -264,6 +277,7 @@ export function sortCarparks(
             return sorted.sort((a, b) => {
                 if (a.isRecommended && !b.isRecommended) return -1;
                 if (!a.isRecommended && b.isRecommended) return 1;
+                // Push 'full' to end; treat 'unknown' as moderate (don't penalise)
                 if (a.availabilityLevel === 'full' && b.availabilityLevel !== 'full')
                     return 1;
                 if (a.availabilityLevel !== 'full' && b.availabilityLevel === 'full')

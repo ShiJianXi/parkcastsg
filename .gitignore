@@ -1,3 +1,5 @@
+<<<<<<< HEAD
+=======
 # Dependencies
 node_modules/
 
@@ -37,7 +39,7 @@ skills-lock.json
 .agents
 *.pyc
 
-
+backend/venv/
 backend/global-bundle.pem
 backend/*.pem
 __pycache__/
@@ -46,4 +48,3 @@ venv/
 .venv/
 env/
 backend/parkcastsg/
-

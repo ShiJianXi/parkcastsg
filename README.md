@@ -1,6 +1,6 @@
 # ParkCastSG
 
-Real-time Singapore carpark finder. Search by destination or postal code, view live HDB carpark availability, filter by shelter/availability, and see results on an interactive map. It also features a machine-learning backend that predicts carpark availability for up to an hour in advance!
+Real-time Singapore carpark finder. Search by destination or postal code, view live carpark availability from multiple sources (HDB, LTA DataMall, and supplemental), filter by shelter/availability, and see results on an interactive map. It also features a machine-learning backend that predicts carpark availability for up to an hour in advance!
 
 ---
 
@@ -11,16 +11,27 @@ Real-time Singapore carpark finder. Search by destination or postal code, view l
 │   Frontend (React/Vite) │  HTTP  │    Backend (FastAPI/Python)  │
 │   localhost:5173        │◄──────►│    localhost:8000            │
 │                         │        │                              │
-│  - OneMap geocoding     │        │  - Loads HDB carpark CSVs    │
-│  - Leaflet map          │        │  - Calls data.gov.sg API     │
-│  - Sort / filter        │        │  - ML Availability Prediction│
+│  - OneMap geocoding     │        │  - Loads HDB + LTA CSVs     │
+│  - Leaflet map          │        │  - Calls data.gov.sg API    │
+│  - Sort / filter        │        │  - Calls LTA DataMall API   │
+│  - Live pricing engine  │        │  - ML Availability Prediction│
 └─────────────────────────┘        └──────────────────────────────┘
           │                                       │
-          │ geocoding                             │ live availability
-          ▼                                       ▼
-   OneMap Public API                  data.gov.sg HDB Carpark API
-   (no key required)                  (no key required)
+          │ geocoding                      HDB live availability
+          ▼                                       │
+   OneMap Public API               ┌──────────────┴──────────────┐
+   (no key required)               ▼                             ▼
+                          data.gov.sg HDB API        LTA DataMall API
+                          (no key required)          (LTA_API_KEY required)
 ```
+
+The backend merges three carpark data sources:
+
+| Source | Coverage | Live availability | Pricing |
+|---|---|---|---|
+| **HDB** | Public HDB carparks in residential estates | Yes — data.gov.sg | HDB standard rates (engine-calculated) |
+| **LTA DataMall** | Non-HDB carparks (URA/LTA-managed, private commercial) | Yes — LTA DataMall API | From `CarparkRates.csv` where matched |
+| **Supplemental** | Carparks in `CarparkRates.csv` not covered by HDB or LTA | No (rates only) | From `CarparkRates.csv` |
 
 ---
 
@@ -42,7 +53,7 @@ Real-time Singapore carpark finder. Search by destination or postal code, view l
 | Python | 3.12+ | Runtime |
 | FastAPI | 0.115 | REST API framework |
 | Uvicorn | 0.34 | ASGI server |
-| httpx | 0.28 | Async HTTP client (calls data.gov.sg) |
+| httpx | 0.28 | Async HTTP client (calls data.gov.sg + LTA DataMall) |
 | python-dotenv | — | Environment variable loading |
 | LightGBM & Scikit-learn| — | Machine Learning Engine |
 | psycopg2-binary | — | PostgreSQL Database driver |
@@ -57,17 +68,25 @@ parkcastsg/
 │   ├── app/
 │   │   ├── main.py              # FastAPI app, CORS config
 │   │   ├── api/
-│   │   │   ├── carparks.py      # /carparks/nearby + /carparks/{id} endpoints
+│   │   │   ├── carparks.py      # /carparks/nearby + /carparks/{id} endpoints (HDB + LTA + supplemental)
 │   │   │   └── prediction.py    # /carparks/{id}/prediction ML endpoint
 │   │   ├── core/
 │   │   │   └── config.py        # Settings (DB env vars)
-│   │   ├── data/
-│   │   │   ├── carpark_lookup.py        # Merges both CSVs into in-memory dict
-│   │   │   └── static_carpark_mapping.csv # Static ML dataset metadata
+│   │   └── data/
+│   │       ├── carpark_lookup.py            # HDB: merges CSVs into in-memory dict
+│   │       ├── hdb_clean_coords.csv         # HDB carparks → WGS84 lat/lng
+│   │       ├── HDBCarparkInformation.csv    # HDB carparks → address, type, flags
+│   │       ├── lta_carpark_lookup.py        # LTA: static lookup from lta_carparks.csv
+│   │       ├── lta_carparks.csv             # LTA carpark geometry (from data pipeline)
+│   │       ├── lta_rates_lookup.py          # Matches LTA carpark names to CarparkRates.csv
+│   │       ├── supplemental_carpark_lookup.py  # Supplemental: carparks in rates CSV only
+│   │       ├── supplemental_carparks.csv    # Supplemental carpark geometry
+│   │       ├── CarparkRates.csv             # Parking rates for LTA/supplemental carparks
+│   │       └── static_carpark_mapping.csv   # Static ML dataset metadata
 │   │   └── models/
 │   │       └── *.pkl            # Pretrained LightGBM model files
 │   ├── requirements.txt
-│   └── .env.example             # Copy to .env and fill in DB credentials
+│   └── .env.example             # Copy to .env and fill in LTA_API_KEY / DB credentials
 │
 ├── frontend/
 │   ├── src/
@@ -80,6 +99,9 @@ parkcastsg/
 │   │       │   ├── results-page.tsx     # Carpark list + map (live API)
 │   │       │   └── carpark-detail-page.tsx
 │   │       ├── components/             # Carpark card, map, filter chips, etc.
+│   │       ├── utils/
+│   │       │   ├── pricingEngine.ts     # HDB live rate calculation (car/motorcycle/heavy)
+│   │       │   └── holidays.ts          # Singapore public holidays for free-parking logic
 │   │       └── data/
 │   │           └── carparks.ts         # Carpark types + sort/filter helpers
 │   ├── .env.local               # VITE_API_BASE_URL (not committed)
@@ -87,6 +109,8 @@ parkcastsg/
 │
 └── src/
     └── data_pipeline/           # Data ingestion scripts & source CSVs
+        ├── fetch_lta_carparks.py        # Pull LTA DataMall carpark list → lta_carparks.csv
+        └── geocode_rates_carparks.py    # Geocode CarparkRates carparks → supplemental_carparks.csv
 ```
 
 ---
@@ -112,11 +136,6 @@ Download the RDS certificate bundle and place it inside your `backend/` folder u
 > **Important:** Always use a virtual environment. Running `uvicorn` without activating the venv will fail with "command not found".
 
 ```powershell
-cd backend
-python -m venv venv
-```
-
-```bash
 cd backend
 python -m venv venv
 ```
@@ -152,12 +171,21 @@ pip install -r requirements.txt
 cp .env.example .env
 ```
 Edit `.env` with your DB credentials for the PostgreSQL ML predictions to work correctly. Ensure there are no invisible trailing spaces following your `DB_HOST` and credentials!
+Set `LTA_API_KEY` for LTA DataMall carparks (optional but recommended).
+`LTA_API_KEY=<your key from https://datamall.lta.gov.sg/content/datamall/en/request-for-api.html>`
+
+The backend works without `LTA_API_KEY`. When the key is absent, LTA DataMall carparks are skipped gracefully and only HDB + supplemental results are returned.
 
 #### 6. Start the backend server
 
 ```bash
 uvicorn app.main:app --reload
 ```
+
+> If you did **not** activate the venv (or activation is not working), you can also run it directly:
+> ```powershell
+> .\venv\Scripts\uvicorn app.main:app --reload
+> ```
 
 The API will be available at **http://localhost:8000**. 
 
@@ -190,6 +218,8 @@ Create a `.env.local` file in the `frontend/` directory:
 VITE_API_BASE_URL=http://localhost:8000
 ```
 
+> This file is git-ignored. When deploying to production, set this to your deployed backend URL.
+
 #### 3. Start the dev server
 
 ```bash
@@ -217,6 +247,10 @@ HTTPS is required at the CloudFront layer to enable the browser Geolocation API.
 - **Frontend**: https://dmxr5wa316ehu.cloudfront.net
 - **API docs (Swagger UI)**: https://dmxr5wa316ehu.cloudfront.net/docs
 
+> **Legacy direct-access URLs (for reference)**
+> - Backend (Elastic Beanstalk): http://parkcast-api-env.eba-9ixmryjr.ap-southeast-1.elasticbeanstalk.com/docs
+> - These bypass CloudFront and should not be used in production; they are listed here for debugging purposes only.
+
 > **Note on Elastic Beanstalk:** The Elastic Beanstalk image now includes `libgomp1` within its `Dockerfile` which is strictly required to run LightGBM machine learning models in Alpine/Linux environments.
 
 ---
@@ -226,9 +260,9 @@ HTTPS is required at the CloudFront layer to enable the browser Geolocation API.
 | Method | Path | Description |
 |---|---|---|
 | `GET` | `/health` | Health check |
-| `GET` | `/api/v1/carparks/nearby` | Carparks within radius of a lat/lng |
-| `GET` | `/api/v1/carparks/{id}` | Single carpark live availability |
-| `GET` | `/api/v1/carparks/{id}/prediction` | Predicated future availability utilizing ML |
+| `GET` | `/api/v1/carparks/nearby` | Carparks within radius of a lat/lng (HDB + LTA + supplemental) |
+| `GET` | `/api/v1/carparks/{id}` | Single carpark live availability (prefix `LTA_` for LTA carparks) |
+| `GET` | `/api/v1/carparks/{id}/prediction` | Predicted future availability utilizing ML |
 
 ### `/api/v1/carparks/nearby` parameters
 
@@ -356,19 +390,15 @@ Example error response:
 ```
 ---
 
----
-
 ## How the Search Works
 
 1. User types a destination (e.g. `"Bishan"` or postal code `"570283"`)
 2. Frontend calls **OneMap API** to geocode the query → `(lat, lng)`
 3. Frontend calls `GET /api/v1/carparks/nearby?lat=...&lng=...&radius=...`
-4. Backend fetches live availability snapshot from `data.gov.sg`
-5. Backend cross-references each carpark against the HDB CSV lookup table
-6. Results filtered by Haversine distance, sorted nearest-first
-7. Frontend renders the carpark list and map
-
-> **Note:** The HDB dataset only covers **public HDB carparks** in residential estates. Commercial zones like Marina Bay and Orchard Road have few/no HDB carparks — use a **2km radius** for those areas or search a nearby residential neighbourhood.
+4. Backend fetches live availability from **data.gov.sg** (HDB) and **LTA DataMall** (non-HDB) concurrently
+5. Backend cross-references each carpark against the static lookup tables (HDB CSV, LTA CSV, supplemental CSV)
+6. Results filtered by Haversine distance and merged from all three sources, sorted nearest-first
+7. Frontend renders the carpark list and map; HDB carparks show live calculated pricing, LTA/supplemental show rates from `CarparkRates.csv` where available
 
 ---
 
@@ -376,9 +406,12 @@ Example error response:
 
 | Source | What it provides | Key |
 |---|---|---|
-| [data.gov.sg HDB Carpark Availability](https://api.data.gov.sg/v1/transport/carpark-availability) | Live lots available per carpark | None required |
+| [data.gov.sg HDB Carpark Availability](https://api.data.gov.sg/v1/transport/carpark-availability) | Live lots available per HDB carpark | None required |
+| [LTA DataMall CarParkAvailabilityv2](https://datamall.lta.gov.sg/content/datamall/en/dynamic-data.html) | Live lots for non-HDB (URA/LTA-managed) carparks | `LTA_API_KEY` env var |
 | `backend/app/data/hdb_clean_coords.csv` | WGS84 lat/lng per HDB carpark | N/A (static file) |
-| `backend/app/data/HDBCarparkInformation.csv` | Address, type, sheltered/night parking flags | N/A (static file) |
+| `backend/app/data/HDBCarparkInformation.csv` | Address, type, sheltered/night parking, pricing flags | N/A (static file) |
+| `backend/app/data/lta_carparks.csv` | LTA carpark geometry (generated by data pipeline) | N/A (static file) |
+| `backend/app/data/CarparkRates.csv` | Parking rates for LTA/supplemental carparks | N/A (static file) |
 | [OneMap API](https://www.onemap.gov.sg/apidocs/) | Geocoding (address/postal code → lat/lng) | None required |
 
 ---
@@ -389,7 +422,8 @@ Example error response:
 |---|---|
 | `uvicorn: command not found` | Activate the venv first: `.\venv\Scripts\Activate.ps1` |
 | `No module named uvicorn` | Install deps: `pip install -r requirements.txt` inside the venv |
-| `No carparks found` in CBD/Orchard | Switch to 2km radius — HDB carparks are sparse in commercial zones |
+| `No carparks found` in CBD/Orchard | Switch to 2km radius — HDB carparks are sparse in commercial zones; LTA carparks require `LTA_API_KEY` |
+| No LTA carparks showing | Set `LTA_API_KEY` in the backend `.env` file (get key from LTA DataMall) |
 | Frontend shows API error | Ensure backend is running on port 8000 and `VITE_API_BASE_URL` is set in `.env.local` |
 | CORS error in browser | Set `CORS_ALLOW_ORIGINS=https://dmxr5wa316ehu.cloudfront.net` in the Elastic Beanstalk environment variables |
 | `asyncio.exceptions.CancelledError` or `WatchFiles detected changes in venv` | Uvicorn is reloading due to virtual environment cache files changing. Make sure to run with `--reload-dir app --reload-exclude venv`. |

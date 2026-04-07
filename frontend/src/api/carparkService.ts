@@ -38,11 +38,16 @@ export interface NearbyCarpark {
   available_lots: number
   total_lots: number
   lot_types: LotTypeAvailability[]
-  crowd_level: 'low' | 'medium' | 'high' | 'full'
+  crowd_level: 'low' | 'medium' | 'high' | 'full' | 'unknown'
   is_sheltered: boolean
   distance: number // metres
   night_parking: boolean
   car_park_type: string
+  source: 'hdb' | 'lta' | 'supplemental'
+  weekdays_rate_1: string | null
+  weekdays_rate_2: string | null
+  saturday_rate: string | null
+  sunday_ph_rate: string | null
   free_parking: string
   short_term_parking: string
   is_central: boolean
@@ -99,18 +104,20 @@ export async function getCarparkPrediction(
 // ---------------------------------------------------------------------------
 
 function crowdToAvailability(crowd: string): AvailabilityLevel {
-  switch (crowd) {
-    case 'low':
-      return 'high'
-    case 'medium':
-      return 'moderate'
-    case 'high':
-      return 'low'
-    case 'full':
-      return 'full'
-    default:
-      return 'moderate'
-  }
+    switch (crowd) {
+        case 'low':
+            return 'high';
+        case 'medium':
+            return 'moderate';
+        case 'high':
+            return 'low';
+        case 'full':
+            return 'full';
+        case 'unknown':
+            return 'unknown';
+        default:
+            return 'moderate';
+    }
 }
 
 function distanceToWalkingMinutes(distanceMetres: number): number {
@@ -119,35 +126,44 @@ function distanceToWalkingMinutes(distanceMetres: number): number {
 }
 
 export function transformCarpark(raw: NearbyCarpark): Carpark {
-  const cp: Carpark = {
-    id: raw.id,
-    name: raw.name,
-    address: raw.address,
-    lat: raw.lat,
-    lng: raw.lng,
-    availableLots: raw.available_lots,
-    totalLots: raw.total_lots,
-    lotTypes: raw.lot_types.map((lot) => ({
-      lotType: lot.lot_type,
-      availableLots: lot.available_lots,
-      totalLots: lot.total_lots,
-    })),
-    availabilityLevel: crowdToAvailability(raw.crowd_level),
-    walkingMinutes: distanceToWalkingMinutes(raw.distance),
-    hourlyRate: 1.2, // default, will be overridden
-    isSheltered: raw.is_sheltered,
-    carparkType: raw.car_park_type,
-    distance: raw.distance,
-    nightParking: raw.night_parking,
-    freeParking: raw.free_parking,
-    shortTermParking: raw.short_term_parking,
-    isCentral: raw.is_central,
-    isPeak: raw.is_peak,
-    isRecommended: raw.available_lots > 10 && raw.is_sheltered,
-  }
+    const isLta = raw.source === 'lta';
+    const isSupplemental = raw.source === 'supplemental';
+    const cp: Carpark = {
+        id: raw.id,
+        name: raw.name,
+        address: raw.address,
+        lat: raw.lat,
+        lng: raw.lng,
+        availableLots: raw.available_lots,
+        totalLots: raw.total_lots,
+        lotTypes: raw.lot_types ? raw.lot_types.map((lot) => ({ lotType: lot.lot_type, availableLots: lot.available_lots, totalLots: lot.total_lots })) : [],
+        availabilityLevel: crowdToAvailability(raw.crowd_level),
+        walkingMinutes: distanceToWalkingMinutes(raw.distance),
 
-  // Assign accurate live numeric rate for UI sorting (e.g. 'Cheapest')
-  cp.hourlyRate = getNumericLiveCarRate(cp)
+        // Rates will be accurately populated from `getNumericLiveCarRate` below based on the current hour.
+        // We set a temporary fallback here if getNumericLiveCarRate fails to parse complex text.
+        hourlyRate: (isLta || isSupplemental) ? Number.POSITIVE_INFINITY : 1.20,
 
-  return cp
+        isSheltered: raw.is_sheltered,
+        carparkType: raw.car_park_type,
+        distance: raw.distance,
+        nightParking: raw.night_parking,
+        source: raw.source,
+        weekdaysRate1: raw.weekdays_rate_1 ?? undefined,
+        weekdaysRate2: raw.weekdays_rate_2 ?? undefined,
+        saturdayRate: raw.saturday_rate ?? undefined,
+        sundayPhRate: raw.sunday_ph_rate ?? undefined,
+        freeParking: raw.free_parking,
+        shortTermParking: raw.short_term_parking,
+        isCentral: raw.is_central,
+        isPeak: raw.is_peak,
+        // LTA/supplemental carparks are not marked recommended (unknown availability)
+        isRecommended: !isLta && !isSupplemental && raw.available_lots > 10 && raw.is_sheltered,
+    };
+
+    // Assign accurate live numeric rate for all carparks so they sort correctly
+    // and render numerically in the CarparkMap popup.
+    cp.hourlyRate = getNumericLiveCarRate(cp);
+
+    return cp
 }

@@ -4,15 +4,22 @@ from datetime import datetime
 from typing import Any
 from zoneinfo import ZoneInfo
 
+import os
 import joblib
 import pandas as pd
 import psycopg2
+import httpx
 from fastapi import APIRouter, HTTPException
 
 from app.core.config import settings
+from app.data.lta_carpark_lookup import LTA_CARPARK_LOOKUP
 
 
 router = APIRouter(tags=["prediction"])
+
+LTA_AVAILABILITY_URL = "https://datamall2.mytransport.sg/ltaodataservice/CarParkAvailabilityv2"
+LTA_API_KEY = os.getenv("LTA_API_KEY") or ""
+LTA_ID_PREFIX = "LTA_"
 
 
 # ----------------------------
@@ -128,15 +135,101 @@ def predict_one(record: dict, model: Any) -> dict:
 
 
 def get_static_mapping(carpark_number: str) -> dict[str, Any]:
-    mapping = STATIC_CARPARK_MAP.get(carpark_number)
+    norm_id = carpark_number.strip().upper()
+
+    # LTA Carparks
+    if norm_id.startswith(LTA_ID_PREFIX):
+        raw_id = norm_id[len("LTA_"):]
+        info = LTA_CARPARK_LOOKUP.get(raw_id)
+        if not info:
+             api_error(
+                status_code=404,
+                error_code="LTA_MAPPING_NOT_FOUND",
+                message="LTA static mapping not found for this carpark.",
+                carpark_number=norm_id,
+            )
+        return {
+            "area": info.get("area", "Central"),
+            "latitude": info["lat"],
+            "longitude": info["lng"],
+        }
+    
+    # HDB Carparks
+    mapping = STATIC_CARPARK_MAP.get(norm_id)
     if not mapping:
         api_error(
             status_code=404,
             error_code="MAPPING_NOT_FOUND",
-            message="Static mapping not found for this carpark.",
-            carpark_number=carpark_number,
+            message=f"Static mapping not found for '{norm_id}'.",
+            carpark_number=norm_id,
         )
     return mapping
+
+
+def get_lta_latest_rows(carpark_number: str) -> list[dict[str, Any]]:
+    """Fetch live availability from LTA DataMall for prediction input."""
+    raw_id = carpark_number[len(LTA_ID_PREFIX):]
+    
+    if not LTA_API_KEY:
+        api_error(
+            status_code=503,
+            error_code="LTA_SERVICE_UNAVAILABLE",
+            message="LTA API Key not configured.",
+            carpark_number=carpark_number,
+        )
+
+    try:
+        with httpx.Client(timeout=10.0) as client:
+            resp = client.get(
+                LTA_AVAILABILITY_URL,
+                headers={"AccountKey": LTA_API_KEY, "accept": "application/json"},
+            )
+            resp.raise_for_status()
+            data = resp.json()
+    except Exception as exc:
+         api_error(
+            status_code=502,
+            error_code="LTA_API_ERROR",
+            message=f"LTA API error: {str(exc)}",
+            carpark_number=carpark_number,
+        )
+
+    if not isinstance(data, dict) or not isinstance(data.get("value"), list):
+        api_error(
+            status_code=502,
+            error_code="LTA_RESPONSE_INVALID",
+            message="Unexpected LTA API response shape",
+            carpark_number=carpark_number,
+        )
+
+    # Filter for this carpark
+    relevant_entries = [
+        e for e in data["value"]
+        if str(e.get("CarParkID", "")).strip() == raw_id
+    ]
+
+    if not relevant_entries:
+         api_error(
+            status_code=404,
+            error_code="LTA_AVAILABILITY_NOT_FOUND",
+            message="No live availability data found for this LTA carpark.",
+            carpark_number=carpark_number,
+        )
+
+    results = []
+    generated_at = datetime.now(ZoneInfo("Asia/Singapore"))
+    for e in relevant_entries:
+        lot_type = e.get("LotType", "C")
+        # LTA doesn't always provide total lots, but ML model needs it.
+        # We can try to use a reasonable default or 0.
+        results.append({
+            "timestamp": generated_at,
+            "carpark_number": carpark_number,
+            "lot_type": lot_type,
+            "total_lots": 0, # Note: inference logic handles 0 total lots
+            "lots_available": int(e.get("AvailableLots", 0)),
+        })
+    return results
 
 
 def get_latest_carpark_rows(carpark_number: str) -> list[dict[str, Any]]:
@@ -222,15 +315,22 @@ def get_weather_for_area(
 def is_invalid_lot_row(row: dict[str, Any]) -> bool:
     total_lots = row.get("total_lots")
     lots_available = row.get("lots_available")
+    cp_num = str(row.get("carpark_number", ""))
 
     if total_lots is None or lots_available is None:
         return True
-    if total_lots <= 1:
-        return True
+    
+    # HDB always provides total_lots > 1. 
+    # LTA (live API) only provides available_lots (total_lots is set to 0).
+    if not cp_num.startswith(LTA_ID_PREFIX):
+        if total_lots <= 1:
+            return True
+        if lots_available > total_lots:
+            return True
+            
     if lots_available < 0:
         return True
-    if lots_available > total_lots:
-        return True
+        
     return False
 
 
@@ -291,11 +391,16 @@ def predict_for_horizon(
 # ----------------------------
 @router.get("/carparks/{carpark_number}/prediction")
 def predict_carpark(carpark_number: str):
+    carpark_number = carpark_number.strip().upper()
     try:
         generated_at = datetime.now(ZoneInfo("Asia/Singapore"))
-
         mapping = get_static_mapping(carpark_number)
-        carpark_rows = get_latest_carpark_rows(carpark_number)
+        
+        if carpark_number.startswith("LTA_"):
+            carpark_rows = get_lta_latest_rows(carpark_number)
+        else:
+            carpark_rows = get_latest_carpark_rows(carpark_number)
+            
         weather_used = get_weather_for_area(
             mapping["area"], generated_at, carpark_number=carpark_number
         )
