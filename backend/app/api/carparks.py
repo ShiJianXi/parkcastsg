@@ -47,7 +47,12 @@ class CarparkAvailability(BaseModel):
     night_parking: bool
     car_park_type: str  # e.g. "MULTI-STOREY CAR PARK", "SURFACE CAR PARK"
     source: str  # "hdb" | "lta" | "supplemental"
-    # Rate fields — populated for LTA carparks when CarparkRates.csv has a match;
+    # HDB pricing metadata (populated for HDB carparks; defaults for others)
+    free_parking: str = "NO"
+    short_term_parking: str = "WHOLE DAY"
+    is_central: bool = False
+    is_peak: bool = False
+    # Rate fields — populated for LTA/supplemental carparks when CarparkRates.csv has a match;
     # None means "no data available" (will render as "see operator" in the UI).
     weekdays_rate_1: str | None = None
     weekdays_rate_2: str | None = None
@@ -180,10 +185,10 @@ async def _fetch_hdb_carparks(lat: float, lng: float, radius: int) -> list[Carpa
                 night_parking=info["night_parking"],
                 car_park_type=info.get("car_park_type", ""),
                 source="hdb",
-            )
-        )
-
-    return results
+                free_parking=info.get("free_parking", "NO"),
+                short_term_parking=info.get("short_term_parking", "WHOLE DAY"),
+                is_central=info.get("is_central", False),
+                is_peak=info.get("is_peak", False),
 
 
 async def _fetch_lta_carparks(lat: float, lng: float, radius: int) -> list[CarparkAvailability]:
@@ -332,6 +337,10 @@ async def _get_hdb_carpark(
         night_parking=info["night_parking"],
         car_park_type=info.get("car_park_type", ""),
         source="hdb",
+        free_parking=info.get("free_parking", "NO"),
+        short_term_parking=info.get("short_term_parking", "WHOLE DAY"),
+        is_central=info.get("is_central", False),
+        is_peak=info.get("is_peak", False),
     )
 
 

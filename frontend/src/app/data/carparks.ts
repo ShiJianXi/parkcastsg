@@ -18,12 +18,17 @@ export interface Carpark {
     distance: number; // in meters
     nightParking?: boolean;
     source?: 'hdb' | 'lta' | 'supplemental'; // data source
-    // Parking rates from CarparkRates.csv — only populated for LTA carparks
+    // Parking rates from CarparkRates.csv — only populated for LTA/supplemental carparks
     // where a name match was found; undefined means "data not available".
     weekdaysRate1?: string;
     weekdaysRate2?: string;
     saturdayRate?: string;
     sundayPhRate?: string;
+    // HDB pricing metadata
+    freeParking?: string;
+    shortTermParking?: string;
+    isCentral?: boolean;
+    isPeak?: boolean;
     prediction?: {
         hour1: number;
         hour2: number;
