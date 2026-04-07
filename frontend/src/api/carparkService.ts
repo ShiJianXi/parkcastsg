@@ -1,5 +1,5 @@
 import type { Carpark, AvailabilityLevel } from '../app/data/carparks'
-import { getNumericLiveCarRate } from '../app/utils/pricingEngine';
+import { getNumericLiveCarRate } from '../app/utils/pricingEngine'
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8000'
 
@@ -27,26 +27,26 @@ export interface CarparkPredictionResponse {
   carpark_number: string
   generated_at: string
   predictions: PredictionSnapshot[]
-
+}
 
 export interface NearbyCarpark {
-    id: string;
-    name: string;
-    address: string;
-    lat: number;
-    lng: number;
-    available_lots: number;
-    total_lots: number;
-    lot_types: LotTypeAvailability[]
-    crowd_level: 'low' | 'medium' | 'high' | 'full';
-    is_sheltered: boolean;
-    distance: number; // metres
-    night_parking: boolean;
-    car_park_type: string;
-    free_parking: string;
-    short_term_parking: string;
-    is_central: boolean;
-    is_peak: boolean;
+  id: string
+  name: string
+  address: string
+  lat: number
+  lng: number
+  available_lots: number
+  total_lots: number
+  lot_types: LotTypeAvailability[]
+  crowd_level: 'low' | 'medium' | 'high' | 'full'
+  is_sheltered: boolean
+  distance: number // metres
+  night_parking: boolean
+  car_park_type: string
+  free_parking: string
+  short_term_parking: string
+  is_central: boolean
+  is_peak: boolean
 }
 
 // ---------------------------------------------------------------------------
@@ -119,35 +119,35 @@ function distanceToWalkingMinutes(distanceMetres: number): number {
 }
 
 export function transformCarpark(raw: NearbyCarpark): Carpark {
-    const cp: Carpark = {
-        id: raw.id,
-        name: raw.name,
-        address: raw.address,
-        lat: raw.lat,
-        lng: raw.lng,
-        availableLots: raw.available_lots,
-        totalLots: raw.total_lots,
-        lotTypes: raw.lot_types.map((lot) => ({
-          lotType: lot.lot_type,
-          availableLots: lot.available_lots,
-          totalLots: lot.total_lots,
-        })),
-        availabilityLevel: crowdToAvailability(raw.crowd_level),
-        walkingMinutes: distanceToWalkingMinutes(raw.distance),
-        hourlyRate: 1.20, // default, will be overridden
-        isSheltered: raw.is_sheltered,
-        carparkType: raw.car_park_type,
-        distance: raw.distance,
-        nightParking: raw.night_parking,
-        freeParking: raw.free_parking,
-        shortTermParking: raw.short_term_parking,
-        isCentral: raw.is_central,
-        isPeak: raw.is_peak,
-        isRecommended: raw.available_lots > 10 && raw.is_sheltered,
-    };
-    
-    // Assign accurate live numeric rate for UI sorting (e.g. 'Cheapest')
-    cp.hourlyRate = getNumericLiveCarRate(cp);
-    
-    return cp;
+  const cp: Carpark = {
+    id: raw.id,
+    name: raw.name,
+    address: raw.address,
+    lat: raw.lat,
+    lng: raw.lng,
+    availableLots: raw.available_lots,
+    totalLots: raw.total_lots,
+    lotTypes: raw.lot_types.map((lot) => ({
+      lotType: lot.lot_type,
+      availableLots: lot.available_lots,
+      totalLots: lot.total_lots,
+    })),
+    availabilityLevel: crowdToAvailability(raw.crowd_level),
+    walkingMinutes: distanceToWalkingMinutes(raw.distance),
+    hourlyRate: 1.2, // default, will be overridden
+    isSheltered: raw.is_sheltered,
+    carparkType: raw.car_park_type,
+    distance: raw.distance,
+    nightParking: raw.night_parking,
+    freeParking: raw.free_parking,
+    shortTermParking: raw.short_term_parking,
+    isCentral: raw.is_central,
+    isPeak: raw.is_peak,
+    isRecommended: raw.available_lots > 10 && raw.is_sheltered,
+  }
+
+  // Assign accurate live numeric rate for UI sorting (e.g. 'Cheapest')
+  cp.hourlyRate = getNumericLiveCarRate(cp)
+
+  return cp
 }
