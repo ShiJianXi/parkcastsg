@@ -327,9 +327,11 @@ export function CarparkDetailPage() {
             <div className='text-center mb-4'>
               <div className='text-4xl font-semibold text-gray-900 mb-2'>
                 {carpark.availableLots}{' '}
-                <span className='text-2xl text-gray-400'>
-                  / {carpark.totalLots}
-                </span>
+                {carpark.totalLots > 0 && (
+                  <span className='text-2xl text-gray-400'>
+                    / {carpark.totalLots}
+                  </span>
+                )}
               </div>
               <p className='text-gray-600'>lots available</p>
             </div>
