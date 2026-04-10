@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router'
-import { MapPin, Navigation } from 'lucide-react'
+import { MapPin, Navigation, Map } from 'lucide-react'
 import { Button } from '../components/ui/button'
 import { Input } from '../components/ui/input'
 import { getUserLocation, GeolocationError } from '../../api/geolocation'
@@ -141,12 +141,22 @@ export function HomePage() {
           </div>
 
           {/* Search Button */}
-          <Button
-            onClick={handleSearch}
-            className='w-full py-6 bg-[#1A56DB] hover:bg-[#1444b8] text-white text-base rounded-lg'
-          >
-            Search Carparks
-          </Button>
+          <div className='space-y-3'>
+            <Button
+              onClick={handleSearch}
+              className='w-full py-6 bg-[#1A56DB] hover:bg-[#1444b8] text-white text-base rounded-lg'
+            >
+              Search Carparks
+            </Button>
+            <Button
+              variant='outline'
+              onClick={() => navigate('/map')}
+              className='w-full py-6 text-[#1A56DB] border-gray-200 hover:border-[#1A56DB] hover:bg-blue-50 text-base rounded-lg flex items-center justify-center gap-2'
+            >
+              <Map className='w-5 h-5' />
+              Explore All Carparks on Map
+            </Button>
+          </div>
         </div>
 
         {/* Quick Access (if logged in) */}

@@ -257,8 +257,7 @@ async def _fetch_lta_carparks(lat: float, lng: float, radius: int) -> list[Carpa
             resp.raise_for_status()
     except httpx.HTTPError as exc:
         logging.warning(
-            "Failed to fetch LTA carpark availability; returning no LTA results",
-            exc_info=exc,
+            f"Failed to fetch LTA carpark availability ({exc}); returning no LTA results"
         )
         return []  # degrade gracefully
 
@@ -548,6 +547,34 @@ def _get_supplemental_carpark(
 # ---------------------------------------------------------------------------
 
 
+@router.get("/carparks/all", response_model=list[CarparkAvailability])
+async def get_all_carparks():
+    """
+    Return ALL HDB, LTA, and supplemental carparks across Singapore with live
+    availability where available.  Distances are computed relative to Singapore's
+    geographic centre (1.3521, 103.8198).  Intended for the full-map explorer
+    view where every carpark should be rendered on the map up-front.
+    """
+    # Use Singapore geographic centre + 100 km radius → captures every carpark
+    SG_LAT = 1.3521
+    SG_LNG = 103.8198
+    SG_RADIUS = 100_000  # 100 km
+
+    hdb_results, lta_results = await asyncio.gather(
+        _fetch_hdb_carparks(SG_LAT, SG_LNG, SG_RADIUS),
+        _fetch_lta_carparks(SG_LAT, SG_LNG, SG_RADIUS),
+    )
+    supplemental_results = _fetch_supplemental_carparks(SG_LAT, SG_LNG, SG_RADIUS)
+    # Deduplicate by ID — HDB results take priority over LTA/supplemental
+    # for the same carpark number (HDB has richer availability data).
+    seen: dict[str, CarparkAvailability] = {}
+    for cp in hdb_results + lta_results + supplemental_results:
+        if cp.id not in seen:
+            seen[cp.id] = cp
+    results = sorted(seen.values(), key=lambda x: x.id)
+    return results
+
+
 @router.get("/carparks/nearby", response_model=list[CarparkAvailability])
 async def get_nearby_carparks(lat: float, lng: float, radius: int = 500):
     """
@@ -561,8 +588,12 @@ async def get_nearby_carparks(lat: float, lng: float, radius: int = 500):
         _fetch_lta_carparks(lat, lng, radius),
     )
     supplemental_results = _fetch_supplemental_carparks(lat, lng, radius)
-    results = hdb_results + lta_results + supplemental_results
-    results.sort(key=lambda x: x.distance)
+    # Deduplicate by ID — HDB results take priority over LTA/supplemental.
+    seen: dict[str, CarparkAvailability] = {}
+    for cp in hdb_results + lta_results + supplemental_results:
+        if cp.id not in seen:
+            seen[cp.id] = cp
+    results = sorted(seen.values(), key=lambda x: x.distance)
     return results
 
 

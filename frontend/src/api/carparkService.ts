@@ -71,6 +71,15 @@ export async function getNearbyCarparks(
   return res.json()
 }
 
+export async function getAllCarparks(): Promise<NearbyCarpark[]> {
+  const url = `${API_BASE}/api/v1/carparks/all`
+  const res = await fetch(url)
+  if (!res.ok) {
+    throw new Error(`Carpark API error ${res.status}`)
+  }
+  return res.json()
+}
+
 export async function getCarparkById(
   id: string,
   lat?: number,
