@@ -8,9 +8,10 @@ interface CarparkCardProps {
     showRainIcon: boolean;
     onClick: () => void;
     onViewDetails?: () => void;
+    hideDistance?: boolean;
 }
 
-export function CarparkCard({ carpark, isSelected, showRainIcon, onClick, onViewDetails }: CarparkCardProps) {
+export function CarparkCard({ carpark, isSelected, showRainIcon, onClick, onViewDetails, hideDistance }: CarparkCardProps) {
     const availabilityColor = getAvailabilityColor(carpark.availabilityLevel);
     const availabilityText = getAvailabilityText(carpark);
     const isLta = carpark.source === 'lta';
@@ -65,7 +66,9 @@ export function CarparkCard({ carpark, isSelected, showRainIcon, onClick, onView
                         </div>
 
                         {/* Walking Distance */}
-                        <span className="text-sm text-gray-600 border-r border-gray-300 pr-4">{carpark.walkingMinutes} min walk</span>
+                        {!hideDistance && (
+                            <span className="text-sm text-gray-600 border-r border-gray-300 pr-4">{carpark.walkingMinutes} min walk</span>
+                        )}
 
                         {/* Price */}
                         {isNonHdb ? (
