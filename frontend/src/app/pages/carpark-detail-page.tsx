@@ -326,8 +326,8 @@ export function CarparkDetailPage() {
             </h2>
 
             {carpark.availabilityLevel === 'unknown' ? (
-              <p className='text-sm text-gray-500'>
-                Live availability data is not available for this carpark.
+              <p className='text-sm text-gray-400 italic'>
+                Availability not tracked
               </p>
             ) : (
               <>

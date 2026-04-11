@@ -118,7 +118,10 @@ function CarparkMarker({ carpark, isSelected, onPinClick }: { carpark: Carpark; 
             <Popup>
                 <div className="text-sm">
                     <p className="font-semibold mb-1">{carpark.name}</p>
-                    <p className="text-gray-600 mb-2">{carpark.availableLots}{carpark.totalLots > 0 ? ` / ${carpark.totalLots}` : ''} lots available</p>
+                    {carpark.availabilityLevel === 'unknown'
+                        ? <p className="text-gray-400 italic mb-2">Availability not tracked</p>
+                        : <p className="text-gray-600 mb-2">{carpark.availableLots}{carpark.totalLots > 0 ? ` / ${carpark.totalLots}` : ''} lots available</p>
+                    }
                     <div className="space-y-1">
                         <p className="text-gray-700 font-medium flex items-center gap-2">
                             <span>🚗</span> {livePricing.car}
