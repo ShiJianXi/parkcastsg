@@ -8,6 +8,7 @@ import React, {
 } from 'react'
 import { useNavigate } from 'react-router'
 import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet'
+import { CarparkPopupContent } from '../components/carpark-popup-content'
 import { MarkerClusterGroup } from '../components/marker-cluster'
 import L from 'leaflet'
 import {
@@ -31,7 +32,6 @@ import {
   getAvailabilityColor,
   type Carpark,
 } from '../data/carparks'
-import { calculateLiveRates } from '../utils/pricingEngine'
 import { CarparkCard } from '../components/carpark-card'
 import { FilterChips } from '../components/filter-chips'
 import { geocodeQuery } from '../../api/geocode'
@@ -87,7 +87,6 @@ const CarparkPin = memo(function CarparkPin({
 }) {
   const markerRef = useRef<L.Marker>(null)
   const color = getAvailabilityColor(carpark.availabilityLevel)
-  const livePricing = calculateLiveRates(carpark)
 
   useEffect(() => {
     if (isSelected && markerRef.current) {
@@ -103,25 +102,7 @@ const CarparkPin = memo(function CarparkPin({
       eventHandlers={{ click: () => onPinClick(carpark.id) }}
     >
       <Popup className="carpark-popup custom-popup">
-        <div className="text-sm">
-          <p className="font-semibold mb-1 text-gray-900">{carpark.name}</p>
-          <p className="text-gray-600 mb-2">
-            {carpark.availabilityLevel === 'unknown'
-              ? 'Live availability unavailable'
-              : `${carpark.availableLots} / ${carpark.totalLots} lots available`}
-          </p>
-          <div className="space-y-1">
-            <p className="text-gray-700 font-medium flex items-center gap-2">
-              <span>🚗</span> {livePricing.car}
-            </p>
-            <p className="text-gray-700 font-medium flex items-center gap-2">
-              <span>🏍️</span> {livePricing.motorcycle}
-            </p>
-            <p className="text-gray-700 font-medium flex items-center gap-2">
-              <span>🚚</span> {livePricing.heavy}
-            </p>
-          </div>
-        </div>
+        <CarparkPopupContent carpark={carpark} />
       </Popup>
     </Marker>
   )
