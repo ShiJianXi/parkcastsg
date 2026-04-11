@@ -256,6 +256,9 @@ export function getAvailabilityText(carpark: Carpark): string {
     if (carpark.availabilityLevel === 'full') {
         return 'Full';
     }
+    if (carpark.totalLots === 0) {
+        return `${carpark.availableLots} lots available`;
+    }
     return `${carpark.availabilityLevel.charAt(0).toUpperCase() + carpark.availabilityLevel.slice(1)} — ${carpark.availableLots} lots`;
 }
 

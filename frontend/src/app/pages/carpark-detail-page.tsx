@@ -336,63 +336,76 @@ export function CarparkDetailPage() {
             <h2 className='text-base font-semibold text-gray-900 mb-4'>
               Current Availability
             </h2>
-            <div className='text-center mb-4'>
-              <div className='text-4xl font-semibold text-gray-900 mb-2'>
-                {carpark.availableLots}{' '}
-                <span className='text-2xl text-gray-400'>
-                  / {carpark.totalLots}
-                </span>
-              </div>
-              <p className='text-gray-600'>lots available</p>
-            </div>
 
-            {/* Crowd Level Bar */}
-            <div className='space-y-2'>
-              <div className='flex justify-between text-sm'>
-                <span className='text-gray-600'>Crowd level</span>
-                <span
-                  className='font-medium capitalize'
-                  style={{
-                    color: getAvailabilityColor(carpark.availabilityLevel),
-                  }}
-                >
-                  {carpark.availabilityLevel === 'high'
-                    ? 'Low Crowd'
-                    : carpark.availabilityLevel === 'moderate'
-                      ? 'Moderate'
-                      : 'High Crowd'}
-                </span>
-              </div>
-              <div className='h-2 bg-gray-200 rounded-full overflow-hidden'>
-                <div
-                  className='h-full transition-all rounded-full'
-                  style={{
-                    width: `${Math.min(
-                      100,
-                      Math.max(
-                        0,
-                        carpark.totalLots > 0
-                          ? ((carpark.totalLots -
-                            Math.min(
-                              carpark.availableLots,
-                              carpark.totalLots,
-                            )) /
-                            carpark.totalLots) *
-                          100
-                          : 0,
-                      ),
-                    )}%`,
-                    backgroundColor: getAvailabilityColor(
-                      carpark.availabilityLevel,
-                    ),
-                  }}
-                />
-              </div>
-            </div>
+            {carpark.availabilityLevel === 'unknown' ? (
+              <p className='text-sm text-gray-400 italic'>
+                Availability not tracked
+              </p>
+            ) : (
+              <>
+                <div className='text-center mb-4'>
+                  <div className='text-4xl font-semibold text-gray-900 mb-2'>
+                    {carpark.availableLots}{' '}
+                    {carpark.totalLots > 0 && (
+                      <span className='text-2xl text-gray-400'>
+                        / {carpark.totalLots}
+                      </span>
+                    )}
+                  </div>
+                  <p className='text-gray-600'>lots available</p>
+                </div>
 
-            <p className='text-xs text-gray-500 mt-3'>
-              Live API from data.gov.sg
-            </p>
+                {/* Crowd Level Bar — only shown when total lots is known */}
+                {carpark.totalLots > 0 && (
+                  <div className='space-y-2'>
+                    <div className='flex justify-between text-sm'>
+                      <span className='text-gray-600'>Crowd level</span>
+                      <span
+                        className='font-medium capitalize'
+                        style={{
+                          color: getAvailabilityColor(carpark.availabilityLevel),
+                        }}
+                      >
+                        {carpark.availabilityLevel === 'high'
+                          ? 'Low Crowd'
+                          : carpark.availabilityLevel === 'moderate'
+                            ? 'Moderate'
+                            : 'High Crowd'}
+                      </span>
+                    </div>
+                    <div className='h-2 bg-gray-200 rounded-full overflow-hidden'>
+                      <div
+                        className='h-full transition-all rounded-full'
+                        style={{
+                          width: `${Math.min(
+                            100,
+                            Math.max(
+                              0,
+                              ((carpark.totalLots -
+                                Math.min(
+                                  carpark.availableLots,
+                                  carpark.totalLots,
+                                )) /
+                                carpark.totalLots) *
+                                100,
+                            ),
+                          )}%`,
+                          backgroundColor: getAvailabilityColor(
+                            carpark.availabilityLevel,
+                          ),
+                        }}
+                      />
+                    </div>
+                  </div>
+                )}
+
+                <p className='text-xs text-gray-500 mt-3'>
+                  {carpark.source === 'lta'
+                    ? 'Live API from LTA DataMall'
+                    : 'Live API from data.gov.sg'}
+                </p>
+              </>
+            )}
           </div>
 
           {carpark.lotTypes && carpark.lotTypes.length > 0 && (
