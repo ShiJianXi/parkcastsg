@@ -22,6 +22,10 @@ import { getWeatherForecast, type WeatherData } from '../../api/weatherService'
 import { LoadingSkeleton } from '../components/loading-skeleton'
 import { NavigationChooserModal } from '../components/navigation-chooser-modal'
 import { generatePricingBreakdown } from '../utils/pricingEngine'
+import {
+  isFavoriteCarpark,
+  toggleFavoriteCarpark,
+} from '../utils/favoritesStorage'
 
 type PredictionHorizon = 15 | 30 | 60
 
@@ -63,12 +67,12 @@ function PredictionSectionSkeleton() {
 }
 
 function RateRow({ label, value }: { label: string; value: string }) {
-    return (
-        <div className="flex gap-2 text-sm">
-            <span className="text-gray-500 whitespace-nowrap w-32 shrink-0">{label}</span>
-            <span className="text-gray-800">{value}</span>
-        </div>
-    );
+  return (
+    <div className="flex gap-2 text-sm">
+      <span className="text-gray-500 whitespace-nowrap w-32 shrink-0">{label}</span>
+      <span className="text-gray-800">{value}</span>
+    </div>
+  );
 }
 
 export function CarparkDetailPage() {
@@ -117,21 +121,21 @@ export function CarparkDetailPage() {
         // Entering this page only happens after "View full details",
         // so fetching prediction here ties the request to that action.
         const rawDataPromise = getCarparkById(id, lat, lng)
-        
+
         // Predictions are currently supported for HDB and LTA (live) carparks.
         // Supplemental carparks do not have live data and are excluded.
         const canPredict = !id.startsWith('SUPP_')
-        
-        const rawPredictionPromise = canPredict 
+
+        const rawPredictionPromise = canPredict
           ? getCarparkPrediction(id).catch(
-              (predictionErr) => {
-                console.error('Prediction fetch error:', predictionErr)
-                if (isMounted) {
-                  setPredictionError('Prediction data is temporarily unavailable.')
-                }
-                return null
-              },
-            )
+            (predictionErr) => {
+              console.error('Prediction fetch error:', predictionErr)
+              if (isMounted) {
+                setPredictionError('Prediction data is temporarily unavailable.')
+              }
+              return null
+            },
+          )
           : Promise.resolve(null)
 
         // Await the carpark details
@@ -173,6 +177,14 @@ export function CarparkDetailPage() {
       isMounted = false
     }
   }, [id, searchParams])
+
+  useEffect(() => {
+    if (!id) {
+      setIsSaved(false)
+      return
+    }
+    setIsSaved(isFavoriteCarpark(id))
+  }, [id])
 
   if (isLoading) {
     return (
@@ -251,20 +263,20 @@ export function CarparkDetailPage() {
   // one card per lot type with 15 / 30 / 60 minute predictions side-by-side
   const predictionRows: PredictionRow[] = prediction
     ? prediction.predictions.reduce<PredictionRow[]>((rows, snapshot) => {
-        for (const lotPrediction of snapshot.by_lot_type) {
-          let row = rows.find((item) => item.lotType === lotPrediction.lot_type)
-          if (!row) {
-            row = { lotType: lotPrediction.lot_type, values: {} }
-            rows.push(row)
-          }
-
-          row.values[snapshot.horizon_minutes] = {
-            predictedAvailableLots: lotPrediction.predicted_available_lots,
-            predictedOccupancyRate: lotPrediction.predicted_occupancy_rate,
-          }
+      for (const lotPrediction of snapshot.by_lot_type) {
+        let row = rows.find((item) => item.lotType === lotPrediction.lot_type)
+        if (!row) {
+          row = { lotType: lotPrediction.lot_type, values: {} }
+          rows.push(row)
         }
-        return rows
-      }, [])
+
+        row.values[snapshot.horizon_minutes] = {
+          predictedAvailableLots: lotPrediction.predicted_available_lots,
+          predictedOccupancyRate: lotPrediction.predicted_occupancy_rate,
+        }
+      }
+      return rows
+    }, [])
     : []
 
   const formatPredictionTimestamp = (value: string) => {
@@ -361,12 +373,12 @@ export function CarparkDetailPage() {
                         0,
                         carpark.totalLots > 0
                           ? ((carpark.totalLots -
-                              Math.min(
-                                carpark.availableLots,
-                                carpark.totalLots,
-                              )) /
-                              carpark.totalLots) *
-                              100
+                            Math.min(
+                              carpark.availableLots,
+                              carpark.totalLots,
+                            )) /
+                            carpark.totalLots) *
+                          100
                           : 0,
                       ),
                     )}%`,
@@ -465,15 +477,15 @@ export function CarparkDetailPage() {
                             <p className='mt-2 text-2xl font-semibold text-gray-900'>
                               {value
                                 ? formatPredictedLots(
-                                    value.predictedAvailableLots,
-                                  )
+                                  value.predictedAvailableLots,
+                                )
                                 : '--'}
                             </p>
                             <p className='mt-1 text-xs text-gray-500'>
                               {value
                                 ? formatOccupancyRate(
-                                    value.predictedOccupancyRate,
-                                  )
+                                  value.predictedOccupancyRate,
+                                )
                                 : 'Pending model output'}
                             </p>
                           </div>
@@ -549,9 +561,8 @@ export function CarparkDetailPage() {
 
             <div className='flex items-center gap-3 mb-4 p-3 bg-gray-50 rounded-lg'>
               <div
-                className={`w-10 h-10 rounded-full flex items-center justify-center ${
-                  carpark.isSheltered ? 'bg-green-100' : 'bg-gray-200'
-                }`}
+                className={`w-10 h-10 rounded-full flex items-center justify-center ${carpark.isSheltered ? 'bg-green-100' : 'bg-gray-200'
+                  }`}
               >
                 <span className='text-lg'>
                   {carpark.isSheltered ? '✓' : '✗'}
@@ -610,11 +621,16 @@ export function CarparkDetailPage() {
             Navigate Here
           </Button>
           <Button
-            onClick={() => setIsSaved(!isSaved)}
+            onClick={() => {
+              if (!id) return
+              setIsSaved(toggleFavoriteCarpark(id))
+            }}
             variant='outline'
-            className={`px-6 py-6 rounded-lg ${
-              isSaved ? 'bg-pink-50 border-pink-300 text-pink-600' : ''
-            }`}
+            aria-label={isSaved ? 'Remove from favorites' : 'Save to favorites'}
+            aria-pressed={isSaved}
+            title={isSaved ? 'Saved to favorites on this device' : 'Save to favorites on this device'}
+            className={`px-6 py-6 rounded-lg ${isSaved ? 'bg-pink-50 border-pink-300 text-pink-600' : ''
+              }`}
           >
             <Heart className={`w-5 h-5 ${isSaved ? 'fill-current' : ''}`} />
           </Button>

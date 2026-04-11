@@ -34,6 +34,7 @@ export interface Carpark {
     shortTermParking?: string;
     isCentral?: boolean;
     isPeak?: boolean;
+    availabilityUpdatedAt?: string;
     prediction?: {
         hour1: number;
         hour2: number;
@@ -250,7 +251,7 @@ export function formatCarparkType(raw?: string): string {
 
 export function getAvailabilityText(carpark: Carpark): string {
     if (carpark.availabilityLevel === 'unknown') {
-        return 'Availability not tracked';
+        return 'Live availability unavailable';
     }
     if (carpark.availabilityLevel === 'full') {
         return 'Full';

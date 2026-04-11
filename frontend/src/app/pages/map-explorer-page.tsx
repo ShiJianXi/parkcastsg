@@ -44,6 +44,16 @@ const SG_ZOOM = 12
 const SEARCH_ZOOM = 15
 const CARPARK_ZOOM = 17
 
+function formatLastUpdated(date: Date): string {
+  const seconds = Math.max(0, Math.round((Date.now() - date.getTime()) / 1000))
+  if (seconds < 10) return 'Updated just now'
+  if (seconds < 60) return `Updated ${seconds}s ago`
+  const mins = Math.round(seconds / 60)
+  if (mins < 60) return `Updated ${mins}m ago`
+  const hours = Math.round(mins / 60)
+  return `Updated ${hours}h ago`
+}
+
 // ─── Custom Icons ─────────────────────────────────────────────────────────────
 function createPinIcon(color: string, isSelected: boolean) {
   const sz = isSelected ? 28 : 22
@@ -97,7 +107,7 @@ const CarparkPin = memo(function CarparkPin({
           <p className="font-semibold mb-1 text-gray-900">{carpark.name}</p>
           <p className="text-gray-600 mb-2">
             {carpark.availabilityLevel === 'unknown'
-              ? 'Availability not tracked'
+              ? 'Live availability unavailable'
               : `${carpark.availableLots} / ${carpark.totalLots} lots available`}
           </p>
           <div className="space-y-1">
@@ -208,6 +218,7 @@ const ExplorerPanelContent = memo(function ExplorerPanelContent({
   onCardClick,
   onViewDetails,
   allCarparksLength,
+  freshnessText,
 }: {
   showBackButton: boolean
   isDrawer: boolean
@@ -233,6 +244,7 @@ const ExplorerPanelContent = memo(function ExplorerPanelContent({
   onCardClick: (cp: Carpark) => void
   onViewDetails: (id: string) => void
   allCarparksLength: number
+  freshnessText: string | null
 }) {
   return (
     <>
@@ -249,11 +261,19 @@ const ExplorerPanelContent = memo(function ExplorerPanelContent({
           )}
           <div className="flex-1">
             <h1 className="text-lg font-bold text-gray-900 leading-tight">Map Explorer</h1>
-            <p className="text-[11px] text-gray-500 font-medium">Singapore · Live Data</p>
+            <p className="text-[11px] text-gray-500 font-medium">
+              Singapore · Live availability for HDB and selected LTA carparks
+            </p>
+            <p className="text-[10px] text-gray-400 font-medium mt-0.5">
+              Some private/commercial carparks do not publish live lot counts.
+            </p>
+            {freshnessText && (
+              <p className="text-[10px] text-gray-400 font-medium mt-0.5">{freshnessText}</p>
+            )}
           </div>
-          <div className="flex items-center gap-1.5 bg-green-50 rounded-full px-2.5 py-1 border border-green-100">
+          <div className="flex items-center gap-1.5 rounded-full px-2.5 py-1 border bg-blue-50 border-blue-100">
             <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
-            <span className="text-[10px] text-green-700 font-bold uppercase tracking-wide">Live</span>
+            <span className="text-[10px] font-bold uppercase tracking-wide text-blue-700">HDB/LTA Live</span>
           </div>
         </div>
 
@@ -331,11 +351,13 @@ const ExplorerPanelContent = memo(function ExplorerPanelContent({
           <p className="text-[11.5px] text-gray-600 font-medium w-full truncate py-0.5">
             <span className="text-gray-900 font-bold">{displayedCarparks.length}</span>{' '}
             {isSearching ? 'loading…' : `results within ${searchRadius >= 1000 ? `${searchRadius / 1000}km` : `${searchRadius}m`}`}
+            {freshnessText ? ` · ${freshnessText}` : ''}
           </p>
         ) : (
           <p className="text-[11.5px] text-gray-600 font-medium w-full truncate py-0.5">
             <span className="text-gray-900 font-bold">{displayedCarparks.length}</span>{' '}
             carparks · sorted A–Z
+            {freshnessText ? ` · ${freshnessText}` : ''}
           </p>
         )}
       </div>
@@ -434,6 +456,7 @@ export function MapExplorerPage() {
   const [rainMode, setRainMode] = useState(false)
   const [panelCollapsed, setPanelCollapsed] = useState(false)
   const [mobilePanelOpen, setMobilePanelOpen] = useState(false)
+  const [lastFetchAt, setLastFetchAt] = useState<Date | null>(null)
 
   // ── Map control ───────────────────────────────────────────────────────────
   const [flyTarget, setFlyTarget] = useState<{ lat: number; lng: number; zoom: number; duration?: number } | null>(null)
@@ -447,6 +470,7 @@ export function MapExplorerPage() {
       try {
         const raw = await getAllCarparks()
         setAllCarparks(raw.map(transformCarpark))
+        setLastFetchAt(new Date())
       } catch {
         setLoadError('Failed to load carpark data. Please refresh.')
       } finally {
@@ -496,6 +520,7 @@ export function MapExplorerPage() {
         const raw = await getNearbyCarparks(coords.lat, coords.lng, radius)
         if (cancelRef.current) return
         setNearbyCarparks(raw.map(transformCarpark))
+        setLastFetchAt(new Date())
       } catch {
         if (!cancelRef.current) setSearchError('Failed to fetch nearby carparks.')
       } finally {
@@ -621,6 +646,27 @@ export function MapExplorerPage() {
     [navigate, searchCoords],
   )
 
+  const panelCarparks = isSearchMode ? displayedCarparks : allCarparks
+  const latestAvailabilityTimestamp = useMemo(() => {
+    const timestamps = panelCarparks
+      .map((cp) => cp.availabilityUpdatedAt)
+      .filter((ts): ts is string => typeof ts === 'string' && ts.length > 0)
+      .map((ts) => new Date(ts))
+      .filter((d) => Number.isFinite(d.getTime()))
+
+    if (timestamps.length === 0) return null
+    return new Date(Math.max(...timestamps.map((d) => d.getTime())))
+  }, [panelCarparks])
+  const freshnessText = useMemo(() => {
+    if (latestAvailabilityTimestamp) {
+      return formatLastUpdated(latestAvailabilityTimestamp)
+    }
+    if (lastFetchAt) {
+      return `${formatLastUpdated(lastFetchAt)} (app fetch time)`
+    }
+    return null
+  }, [latestAvailabilityTimestamp, lastFetchAt])
+
   // ── Render ─────────────────────────────────────────────────────────────────
   return (
     <>
@@ -670,6 +716,7 @@ export function MapExplorerPage() {
             onCardClick={handleCardClick}
             onViewDetails={handleViewDetails}
             allCarparksLength={allCarparks.length}
+            freshnessText={freshnessText}
           />
         </div>
 
@@ -820,6 +867,7 @@ export function MapExplorerPage() {
                 onCardClick={handleCardClick}
                 onViewDetails={handleViewDetails}
                 allCarparksLength={allCarparks.length}
+                freshnessText={freshnessText}
               />
             </div>
           </DrawerContent>

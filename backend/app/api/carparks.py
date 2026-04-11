@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
+from datetime import datetime, timezone
 from math import atan2, cos, radians, sin, sqrt
 
 import httpx
@@ -65,6 +66,8 @@ class CarparkAvailability(BaseModel):
     weekdays_rate_2: str | None = None
     saturday_rate: str | None = None
     sunday_ph_rate: str | None = None
+    # Availability timestamp from upstream when available; otherwise fetch-time.
+    availability_timestamp: str | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -170,6 +173,7 @@ async def _fetch_hdb_carparks(lat: float, lng: float, radius: int) -> list[Carpa
         )
 
     carpark_data = first_item["carpark_data"]
+    hdb_timestamp = first_item.get("timestamp") if isinstance(first_item.get("timestamp"), str) else None
     if not isinstance(carpark_data, list):
         raise HTTPException(
             status_code=502,
@@ -212,6 +216,7 @@ async def _fetch_hdb_carparks(lat: float, lng: float, radius: int) -> list[Carpa
                 short_term_parking=info.get("short_term_parking", "WHOLE DAY"),
                 is_central=info.get("is_central", False),
                 is_peak=info.get("is_peak", False),
+                availability_timestamp=hdb_timestamp,
             )
         )
 
@@ -248,6 +253,7 @@ async def _fetch_lta_carparks(lat: float, lng: float, radius: int) -> list[Carpa
         return []
 
     # 2. Fetch live availability for all carparks (API returns the full dataset).
+    lta_fetch_timestamp = datetime.now(timezone.utc).isoformat()
     try:
         async with httpx.AsyncClient(timeout=10.0) as client:
             resp = await client.get(
@@ -311,6 +317,7 @@ async def _fetch_lta_carparks(lat: float, lng: float, radius: int) -> list[Carpa
                 weekdays_rate_2=_rate_field(rates.get("weekdays_rate_2", "")),
                 saturday_rate=_rate_field(rates.get("saturday_rate", "")),
                 sunday_ph_rate=_rate_field(rates.get("sunday_ph_rate", "")),
+                availability_timestamp=lta_fetch_timestamp,
             )
         )
 
@@ -331,7 +338,10 @@ async def _get_hdb_carpark(
     except httpx.HTTPError as exc:
         raise HTTPException(status_code=502, detail=f"HDB API error: {exc}") from exc
 
-    carpark_data: list[dict] = resp.json()["items"][0]["carpark_data"]
+    payload = resp.json()
+    first_item = payload.get("items", [{}])[0] if isinstance(payload.get("items"), list) else {}
+    hdb_timestamp = first_item.get("timestamp") if isinstance(first_item, dict) and isinstance(first_item.get("timestamp"), str) else None
+    carpark_data: list[dict] = first_item.get("carpark_data", []) if isinstance(first_item, dict) else []
     cp = next(
         (c for c in carpark_data if c.get("carpark_number") == carpark_id.upper()), None
     )
@@ -369,6 +379,7 @@ async def _get_hdb_carpark(
         short_term_parking=info.get("short_term_parking", "WHOLE DAY"),
         is_central=info.get("is_central", False),
         is_peak=info.get("is_peak", False),
+        availability_timestamp=hdb_timestamp,
     )
 
 
@@ -396,6 +407,7 @@ async def _get_lta_carpark(
         )
 
     try:
+        lta_fetch_timestamp = datetime.now(timezone.utc).isoformat()
         async with httpx.AsyncClient(timeout=10.0) as client:
             resp = await client.get(
                 LTA_AVAILABILITY_URL,
@@ -448,6 +460,7 @@ async def _get_lta_carpark(
         weekdays_rate_2=_rate_field(rates.get("weekdays_rate_2", "")),
         saturday_rate=_rate_field(rates.get("saturday_rate", "")),
         sunday_ph_rate=_rate_field(rates.get("sunday_ph_rate", "")),
+        availability_timestamp=lta_fetch_timestamp,
     )
 
 

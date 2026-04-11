@@ -52,6 +52,7 @@ export interface NearbyCarpark {
   short_term_parking: string
   is_central: boolean
   is_peak: boolean
+  availability_timestamp: string | null
 }
 
 // ---------------------------------------------------------------------------
@@ -166,6 +167,7 @@ export function transformCarpark(raw: NearbyCarpark): Carpark {
         shortTermParking: raw.short_term_parking,
         isCentral: raw.is_central,
         isPeak: raw.is_peak,
+        availabilityUpdatedAt: raw.availability_timestamp ?? undefined,
         // LTA/supplemental carparks are not marked recommended (unknown availability)
         isRecommended: !isLta && !isSupplemental && raw.available_lots > 10 && raw.is_sheltered,
     };
