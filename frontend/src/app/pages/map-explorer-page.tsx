@@ -35,6 +35,7 @@ import { calculateLiveRates } from '../utils/pricingEngine'
 import { CarparkCard } from '../components/carpark-card'
 import { FilterChips } from '../components/filter-chips'
 import { geocodeQuery } from '../../api/geocode'
+import { Drawer, DrawerContent } from '../components/ui/drawer'
 import 'leaflet/dist/leaflet.css'
 
 // ─── Singapore Defaults ───────────────────────────────────────────────────────
@@ -182,6 +183,207 @@ const SearchInput = memo(function SearchInput({
   )
 })
 
+const ExplorerPanelContent = memo(function ExplorerPanelContent({
+  showBackButton,
+  isDrawer,
+  onBack,
+  isSearching,
+  locationLoading,
+  onSearch,
+  onUseLocation,
+  searchError,
+  isSearchMode,
+  searchLabel,
+  onClearSearch,
+  searchRadius,
+  onSearchRadiusChange,
+  sortBy,
+  rainMode,
+  onSortChange,
+  onRainModeToggle,
+  isLoading,
+  loadError,
+  displayedCarparks,
+  selectedCarpark,
+  onCardClick,
+  onViewDetails,
+  allCarparksLength,
+}: {
+  showBackButton: boolean
+  isDrawer: boolean
+  onBack: () => void
+  isSearching: boolean
+  locationLoading: boolean
+  onSearch: (q: string) => void
+  onUseLocation: () => void
+  searchError: string | null
+  isSearchMode: boolean
+  searchLabel: string | null
+  onClearSearch: () => void
+  searchRadius: number
+  onSearchRadiusChange: (radius: number) => void
+  sortBy: 'recommended' | 'cheapest' | 'closest' | 'available'
+  rainMode: boolean
+  onSortChange: (value: 'recommended' | 'cheapest' | 'closest' | 'available') => void
+  onRainModeToggle: () => void
+  isLoading: boolean
+  loadError: string | null
+  displayedCarparks: Carpark[]
+  selectedCarpark: string | null
+  onCardClick: (cp: Carpark) => void
+  onViewDetails: (id: string) => void
+  allCarparksLength: number
+}) {
+  return (
+    <>
+      <div className={`p-4 border-b border-gray-200 shrink-0 ${isDrawer ? 'bg-white' : 'bg-gray-50/50'}`}>
+        <div className="flex items-center gap-3 mb-3">
+          {showBackButton && (
+            <button
+              onClick={onBack}
+              className="p-1.5 rounded-lg bg-white border border-gray-200 text-gray-500 hover:text-gray-700 hover:bg-gray-50 transition-colors"
+              title="Back to Home"
+            >
+              <ArrowLeft size={16} />
+            </button>
+          )}
+          <div className="flex-1">
+            <h1 className="text-lg font-bold text-gray-900 leading-tight">Map Explorer</h1>
+            <p className="text-[11px] text-gray-500 font-medium">Singapore · Live Data</p>
+          </div>
+          <div className="flex items-center gap-1.5 bg-green-50 rounded-full px-2.5 py-1 border border-green-100">
+            <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
+            <span className="text-[10px] text-green-700 font-bold uppercase tracking-wide">Live</span>
+          </div>
+        </div>
+
+        <SearchInput
+          isSearching={isSearching}
+          locationLoading={locationLoading}
+          onSearch={onSearch}
+          onUseLocation={onUseLocation}
+        />
+
+        {searchError && (
+          <p className="text-[11px] text-red-500 font-medium mt-2">{searchError}</p>
+        )}
+
+        {isSearchMode && searchLabel && (
+          <div className="mt-2.5 px-3 py-2 bg-blue-50 border border-blue-100 rounded-lg flex items-center gap-2">
+            <MapPin size={13} className="text-blue-600 shrink-0" />
+            <span className="text-[11.5px] text-blue-800 font-semibold flex-1 truncate">{searchLabel}</span>
+            <button
+              onClick={onClearSearch}
+              className="text-blue-400 hover:text-blue-600 transition-colors"
+              title="Clear search"
+            >
+              <X size={14} />
+            </button>
+          </div>
+        )}
+
+        <div className="mt-2.5">
+          <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1.5">
+            Search Radius
+          </p>
+          <div className="flex gap-1.5">
+            {[300, 500, 1000, 2000].map((r) => (
+              <button
+                key={r}
+                className={`flex-1 py-1.5 rounded-md text-[11px] font-bold transition-colors border ${
+                  searchRadius === r
+                    ? 'bg-[#1A56DB] text-white border-[#1A56DB] shadow-sm'
+                    : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'
+                }`}
+                onClick={() => onSearchRadiusChange(r)}
+              >
+                {r >= 1000 ? `${r / 1000}km` : `${r}m`}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      <div className="px-4 py-3 border-b border-gray-200 shrink-0 bg-white">
+        {isSearchMode ? (
+          <FilterChips
+            selectedFilter={sortBy}
+            rainMode={rainMode}
+            onFilterChange={onSortChange}
+            onRainModeToggle={onRainModeToggle}
+          />
+        ) : (
+          <div className="flex items-center gap-2 text-gray-400 select-none" title="Search for a destination first to enable sorting">
+            <Search size={13} className="shrink-0" />
+            <span className="text-[11.5px] font-medium">Search to sort & filter results</span>
+          </div>
+        )}
+      </div>
+
+      <div className="px-4 py-2 border-b border-gray-200 shrink-0 bg-gray-50 flex items-center">
+        {isLoading ? (
+          <p className="text-[11px] text-gray-500 font-medium w-full text-center py-0.5">
+            ⏳ Loading carparks…
+          </p>
+        ) : loadError ? (
+          <p className="text-[11px] text-red-500 font-medium w-full py-0.5">{loadError}</p>
+        ) : isSearchMode ? (
+          <p className="text-[11.5px] text-gray-600 font-medium w-full truncate py-0.5">
+            <span className="text-gray-900 font-bold">{displayedCarparks.length}</span>{' '}
+            {isSearching ? 'loading…' : `results within ${searchRadius >= 1000 ? `${searchRadius / 1000}km` : `${searchRadius}m`}`}
+          </p>
+        ) : (
+          <p className="text-[11.5px] text-gray-600 font-medium w-full truncate py-0.5">
+            <span className="text-gray-900 font-bold">{displayedCarparks.length}</span>{' '}
+            carparks · sorted A–Z
+          </p>
+        )}
+      </div>
+
+      <div className="panel-scroll flex-1 overflow-y-auto bg-[#F9FAFB] p-4 space-y-3">
+        {isLoading ? (
+          Array.from({ length: 6 }).map((_, i) => (
+            <div key={i} className="bg-white border border-gray-100 rounded-xl h-20 animate-pulse shadow-sm" />
+          ))
+        ) : isSearching ? (
+          Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} className="bg-white border border-gray-100 rounded-xl h-20 animate-pulse shadow-sm" />
+          ))
+        ) : displayedCarparks.length === 0 ? (
+          <div className="text-center pt-12">
+            <Search className="mx-auto mb-3 text-gray-300" size={32} />
+            <p className="text-[13px] font-bold text-gray-700">No carparks found</p>
+            <p className="text-[11.5px] text-gray-500 mt-1">
+              {isSearchMode
+                ? 'Try expanding the radius or a different location'
+                : 'No carpark data available'}
+            </p>
+          </div>
+        ) : (
+          displayedCarparks.map((cp) => (
+            <CarparkCard
+              key={cp.id}
+              carpark={cp}
+              isSelected={selectedCarpark === cp.id}
+              showRainIcon={rainMode}
+              hideDistance={!isSearchMode}
+              onClick={() => onCardClick(cp)}
+              onViewDetails={() => onViewDetails(cp.id)}
+            />
+          ))
+        )}
+      </div>
+
+      <div className="px-4 py-2 border-t border-gray-200 shrink-0 bg-white flex justify-between items-center">
+        <p className="text-[10px] font-medium text-gray-400">
+          {allCarparksLength > 0 ? `${allCarparksLength} total carparks` : ''}
+        </p>
+        <p className="text-[10px] font-medium text-gray-400">Singapore</p>
+      </div>
+    </>
+  )
+})
+
 // ─── Map Controller (programmatic fly-to) ─────────────────────────────────────
 function MapController({
   flyTarget,
@@ -231,6 +433,7 @@ export function MapExplorerPage() {
   const [sortBy, setSortBy] = useState<'recommended' | 'cheapest' | 'closest' | 'available'>('recommended')
   const [rainMode, setRainMode] = useState(false)
   const [panelCollapsed, setPanelCollapsed] = useState(false)
+  const [mobilePanelOpen, setMobilePanelOpen] = useState(false)
 
   // ── Map control ───────────────────────────────────────────────────────────
   const [flyTarget, setFlyTarget] = useState<{ lat: number; lng: number; zoom: number; duration?: number } | null>(null)
@@ -372,6 +575,7 @@ export function MapExplorerPage() {
   // Clicking a card → fly map to that carpark and highlight its pin
   const handleCardClick = useCallback((cp: Carpark) => {
     setSelectedCarpark(cp.id)
+    setMobilePanelOpen(false)
     // duration:0 = instant setView, so the marker is already in viewport when
     // CarparkPin's 120ms popup timer fires.
     setFlyTarget({ lat: cp.lat, lng: cp.lng, zoom: CARPARK_ZOOM, duration: 0 })
@@ -438,168 +642,63 @@ export function MapExplorerPage() {
 
         {/* ── LEFT PANEL ──────────────────────────────────────────────────── */}
         <div
-          className="flex flex-col bg-white border-r border-gray-200 transition-all duration-300 relative z-10"
+          className="hidden md:flex md:flex-col bg-white border-r border-gray-200 transition-all duration-300 relative z-10"
           style={{ width: panelCollapsed ? 0 : 360, minWidth: panelCollapsed ? 0 : 360, overflow: 'hidden' }}
         >
-          {/* Header */}
-          <div className="p-4 border-b border-gray-200 shrink-0 bg-gray-50/50">
-            <div className="flex items-center gap-3 mb-3">
-              <button
-                onClick={() => navigate('/')}
-                className="p-1.5 rounded-lg bg-white border border-gray-200 text-gray-500 hover:text-gray-700 hover:bg-gray-50 transition-colors"
-                title="Back to Home"
-              >
-                <ArrowLeft size={16} />
-              </button>
-              <div className="flex-1">
-                <h1 className="text-lg font-bold text-gray-900 leading-tight">Map Explorer</h1>
-                <p className="text-[11px] text-gray-500 font-medium">Singapore · Live Data</p>
-              </div>
-              <div className="flex items-center gap-1.5 bg-green-50 rounded-full px-2.5 py-1 border border-green-100">
-                <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
-                <span className="text-[10px] text-green-700 font-bold uppercase tracking-wide">Live</span>
-              </div>
-            </div>
-
-            {/* Search input (isolated component — no map re-renders on keystroke) */}
-            <SearchInput
-              isSearching={isSearching}
-              locationLoading={locationLoading}
-              onSearch={handleSearch}
-              onUseLocation={handleUseLocation}
-            />
-
-            {/* Error */}
-            {searchError && (
-              <p className="text-[11px] text-red-500 font-medium mt-2">{searchError}</p>
-            )}
-
-            {/* Active search banner */}
-            {isSearchMode && searchLabel && (
-              <div className="mt-2.5 px-3 py-2 bg-blue-50 border border-blue-100 rounded-lg flex items-center gap-2">
-                <MapPin size={13} className="text-blue-600 shrink-0" />
-                <span className="text-[11.5px] text-blue-800 font-semibold flex-1 truncate">{searchLabel}</span>
-                <button
-                  onClick={handleClearSearch}
-                  className="text-blue-400 hover:text-blue-600 transition-colors"
-                  title="Clear search"
-                >
-                  <X size={14} />
-                </button>
-              </div>
-            )}
-
-            {/* Radius pills — always visible so user can set radius before searching */}
-            <div className="mt-2.5">
-              <p className="text-[10px] font-bold text-gray-500 uppercase tracking-wider mb-1.5">
-                Search Radius
-              </p>
-              <div className="flex gap-1.5">
-                {[300, 500, 1000, 2000].map((r) => (
-                  <button
-                    key={r}
-                    className={`flex-1 py-1.5 rounded-md text-[11px] font-bold transition-colors border ${
-                      searchRadius === r
-                        ? 'bg-[#1A56DB] text-white border-[#1A56DB] shadow-sm'
-                        : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'
-                    }`}
-                    onClick={() => setSearchRadius(r)}
-                  >
-                    {r >= 1000 ? `${r / 1000}km` : `${r}m`}
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          {/* Filter chips — only active when a search is set */}
-          <div className="px-4 py-3 border-b border-gray-200 shrink-0 bg-white">
-            {isSearchMode ? (
-              <FilterChips
-                selectedFilter={sortBy}
-                rainMode={rainMode}
-                onFilterChange={setSortBy}
-                onRainModeToggle={() => setRainMode((r) => !r)}
-              />
-            ) : (
-              <div className="flex items-center gap-2 text-gray-400 select-none" title="Search for a destination first to enable sorting">
-                <Search size={13} className="shrink-0" />
-                <span className="text-[11.5px] font-medium">Search to sort & filter results</span>
-              </div>
-            )}
-          </div>
-
-          {/* Status bar */}
-          <div className="px-4 py-2 border-b border-gray-200 shrink-0 bg-gray-50 flex items-center">
-            {isLoading ? (
-              <p className="text-[11px] text-gray-500 font-medium w-full text-center py-0.5">
-                ⏳ Loading carparks…
-              </p>
-            ) : loadError ? (
-              <p className="text-[11px] text-red-500 font-medium w-full py-0.5">{loadError}</p>
-            ) : isSearchMode ? (
-              <p className="text-[11.5px] text-gray-600 font-medium w-full truncate py-0.5">
-                <span className="text-gray-900 font-bold">{displayedCarparks.length}</span>{' '}
-                {isSearching ? 'loading…' : `results within ${searchRadius >= 1000 ? `${searchRadius / 1000}km` : `${searchRadius}m`}`}
-              </p>
-            ) : (
-              <p className="text-[11.5px] text-gray-600 font-medium w-full truncate py-0.5">
-                <span className="text-gray-900 font-bold">{displayedCarparks.length}</span>{' '}
-                carparks · sorted A–Z
-              </p>
-            )}
-          </div>
-
-          {/* Carpark list */}
-          <div className="panel-scroll flex-1 overflow-y-auto bg-[#F9FAFB] p-4 space-y-3">
-            {isLoading ? (
-              Array.from({ length: 6 }).map((_, i) => (
-                <div key={i} className="bg-white border border-gray-100 rounded-xl h-20 animate-pulse shadow-sm" />
-              ))
-            ) : isSearching ? (
-              Array.from({ length: 4 }).map((_, i) => (
-                <div key={i} className="bg-white border border-gray-100 rounded-xl h-20 animate-pulse shadow-sm" />
-              ))
-            ) : displayedCarparks.length === 0 ? (
-              <div className="text-center pt-12">
-                <Search className="mx-auto mb-3 text-gray-300" size={32} />
-                <p className="text-[13px] font-bold text-gray-700">No carparks found</p>
-                <p className="text-[11.5px] text-gray-500 mt-1">
-                  {isSearchMode
-                    ? 'Try expanding the radius or a different location'
-                    : 'No carpark data available'}
-                </p>
-              </div>
-            ) : (
-              displayedCarparks.map((cp) => (
-                <CarparkCard
-                  key={cp.id}
-                  carpark={cp}
-                  isSelected={selectedCarpark === cp.id}
-                  showRainIcon={rainMode}
-                  hideDistance={!isSearchMode}
-                  onClick={() => handleCardClick(cp)}
-                  onViewDetails={() => handleViewDetails(cp.id)}
-                />
-              ))
-            )}
-          </div>
-
-          {/* Footer */}
-          <div className="px-4 py-2 border-t border-gray-200 shrink-0 bg-white flex justify-between items-center">
-            <p className="text-[10px] font-medium text-gray-400">
-              {allCarparks.length > 0 ? `${allCarparks.length} total carparks` : ''}
-            </p>
-            <p className="text-[10px] font-medium text-gray-400">Singapore</p>
-          </div>
+          <ExplorerPanelContent
+            showBackButton
+            isDrawer={false}
+            onBack={() => navigate('/')}
+            isSearching={isSearching}
+            locationLoading={locationLoading}
+            onSearch={handleSearch}
+            onUseLocation={handleUseLocation}
+            searchError={searchError}
+            isSearchMode={isSearchMode}
+            searchLabel={searchLabel}
+            onClearSearch={handleClearSearch}
+            searchRadius={searchRadius}
+            onSearchRadiusChange={setSearchRadius}
+            sortBy={sortBy}
+            rainMode={rainMode}
+            onSortChange={setSortBy}
+            onRainModeToggle={() => setRainMode((r) => !r)}
+            isLoading={isLoading}
+            loadError={loadError}
+            displayedCarparks={displayedCarparks}
+            selectedCarpark={selectedCarpark}
+            onCardClick={handleCardClick}
+            onViewDetails={handleViewDetails}
+            allCarparksLength={allCarparks.length}
+          />
         </div>
 
         {/* ── MAP AREA ──────────────────────────────────────────────────────── */}
         <div className="flex-1 relative overflow-hidden bg-gray-100 z-0">
+          {/* Mobile back button */}
+          <button
+            onClick={() => navigate('/')}
+            className="md:hidden absolute top-4 left-4 z-[1000] bg-white border border-gray-200 rounded-lg p-2 text-gray-600 shadow-md hover:bg-gray-50 transition-colors"
+            title="Back to Home"
+          >
+            <ArrowLeft size={16} />
+          </button>
+
+          {/* Mobile drawer trigger */}
+          <button
+            onClick={() => setMobilePanelOpen(true)}
+            className="md:hidden absolute top-4 right-4 z-[1000] bg-white border border-gray-200 rounded-lg px-3 py-2 text-gray-700 shadow-md hover:bg-gray-50 transition-colors flex items-center gap-1.5"
+          >
+            <Search size={14} className="text-blue-600" />
+            <span className="text-[12px] font-bold">
+              {isSearchMode ? `${displayedCarparks.length} results` : 'Search & results'}
+            </span>
+          </button>
+
           {/* Panel toggle */}
           <button
             onClick={() => setPanelCollapsed((c) => !c)}
-            className="absolute top-4 left-4 z-[1000] bg-white border border-gray-200 rounded-lg p-2 text-gray-600 shadow-md hover:bg-gray-50 transition-colors flex items-center gap-1.5"
+            className="hidden md:flex absolute top-4 left-4 z-[1000] bg-white border border-gray-200 rounded-lg p-2 text-gray-600 shadow-md hover:bg-gray-50 transition-colors items-center gap-1.5"
           >
             <Layers size={16} className="text-blue-600" />
             {panelCollapsed && <span className="text-[12px] font-bold text-gray-700">Show panel</span>}
@@ -661,7 +760,7 @@ export function MapExplorerPage() {
           </MapContainer>
 
           {/* Zoom controls */}
-          <div className="absolute bottom-[20px] right-4 z-[1000] flex flex-col shadow-md rounded-xl overflow-hidden bg-white border border-gray-200">
+          <div className="absolute bottom-[20px] right-3 md:right-4 z-[1000] flex flex-col shadow-md rounded-xl overflow-hidden bg-white border border-gray-200">
             {[
               { label: '+', action: () => mapRef.current?.zoomIn() },
               { label: '−', action: () => mapRef.current?.zoomOut() },
@@ -677,7 +776,7 @@ export function MapExplorerPage() {
           </div>
 
           {/* Legend */}
-          <div className="absolute top-4 right-4 z-[1000] bg-white border border-gray-200 rounded-xl p-3 shadow-md">
+          <div className="hidden md:block absolute top-4 right-4 z-[1000] bg-white border border-gray-200 rounded-xl p-3 shadow-md">
             <p className="text-[10px] font-bold text-gray-500 mb-2 uppercase tracking-wide">Capacity Status</p>
             {[
               { color: '#10B981', label: 'High Availability' },
@@ -692,6 +791,39 @@ export function MapExplorerPage() {
             ))}
           </div>
         </div>
+
+        <Drawer open={mobilePanelOpen} onOpenChange={setMobilePanelOpen}>
+          <DrawerContent className="md:hidden max-h-[82vh]">
+            <div className="h-full overflow-y-auto">
+              <ExplorerPanelContent
+                showBackButton={false}
+                isDrawer
+                onBack={() => navigate('/')}
+                isSearching={isSearching}
+                locationLoading={locationLoading}
+                onSearch={handleSearch}
+                onUseLocation={handleUseLocation}
+                searchError={searchError}
+                isSearchMode={isSearchMode}
+                searchLabel={searchLabel}
+                onClearSearch={handleClearSearch}
+                searchRadius={searchRadius}
+                onSearchRadiusChange={setSearchRadius}
+                sortBy={sortBy}
+                rainMode={rainMode}
+                onSortChange={setSortBy}
+                onRainModeToggle={() => setRainMode((r) => !r)}
+                isLoading={isLoading}
+                loadError={loadError}
+                displayedCarparks={displayedCarparks}
+                selectedCarpark={selectedCarpark}
+                onCardClick={handleCardClick}
+                onViewDetails={handleViewDetails}
+                allCarparksLength={allCarparks.length}
+              />
+            </div>
+          </DrawerContent>
+        </Drawer>
       </div>
     </>
   )
