@@ -52,6 +52,7 @@ export interface NearbyCarpark {
   short_term_parking: string
   is_central: boolean
   is_peak: boolean
+  availability_timestamp: string | null
 }
 
 // ---------------------------------------------------------------------------
@@ -64,6 +65,15 @@ export async function getNearbyCarparks(
   radius: number,
 ): Promise<NearbyCarpark[]> {
   const url = `${API_BASE}/api/v1/carparks/nearby?lat=${lat}&lng=${lng}&radius=${radius}`
+  const res = await fetch(url)
+  if (!res.ok) {
+    throw new Error(`Carpark API error ${res.status}`)
+  }
+  return res.json()
+}
+
+export async function getAllCarparks(): Promise<NearbyCarpark[]> {
+  const url = `${API_BASE}/api/v1/carparks/all`
   const res = await fetch(url)
   if (!res.ok) {
     throw new Error(`Carpark API error ${res.status}`)
@@ -157,6 +167,7 @@ export function transformCarpark(raw: NearbyCarpark): Carpark {
         shortTermParking: raw.short_term_parking,
         isCentral: raw.is_central,
         isPeak: raw.is_peak,
+        availabilityUpdatedAt: raw.availability_timestamp ?? undefined,
         // LTA/supplemental carparks are not marked recommended (unknown availability)
         isRecommended: !isLta && !isSupplemental && raw.available_lots > 10 && raw.is_sheltered,
     };
