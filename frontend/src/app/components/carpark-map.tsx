@@ -245,7 +245,10 @@ export function CarparkMap(props: CarparkMapProps) {
                         <div className="w-3 h-3 rounded-full bg-[#EF4444]" />
                         <span className="text-gray-700">Full</span>
                     </div>
-
+                    <div className="flex items-center gap-2">
+                        <div className="w-3 h-3 rounded-full bg-[#9CA3AF]" />
+                        <span className="text-gray-700">Not tracked</span>
+                    </div>
                 </div>
             </div>
         </div>
