@@ -56,7 +56,7 @@ export function HomePage() {
               className='w-8 h-8 rounded-lg object-contain'
             />
             <span className='text-xl font-semibold text-gray-900'>
-              ParkCastSG
+              ParkCast SG
             </span>
           </div>
           {showAuthButton && (
@@ -128,11 +128,10 @@ export function HomePage() {
                 <button
                   key={r}
                   onClick={() => setRadius(r as 300 | 500 | 1000 | 2000)}
-                  className={`flex-1 py-2.5 px-4 rounded-full text-sm font-medium transition-all ${
-                    radius === r
+                  className={`flex-1 py-2.5 px-4 rounded-full text-sm font-medium transition-all ${radius === r
                       ? 'bg-[#1A56DB] text-white shadow-md'
                       : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                  }`}
+                    }`}
                 >
                   {r >= 1000 ? `${r / 1000}km` : `${r}m`}
                 </button>
