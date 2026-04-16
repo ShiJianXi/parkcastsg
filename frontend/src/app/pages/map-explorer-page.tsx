@@ -824,12 +824,12 @@ export function MapExplorerPage() {
 
           {/* Legend */}
           <div className="hidden md:block absolute top-4 right-4 z-[1000] bg-white border border-gray-200 rounded-xl p-3 shadow-md">
-            <p className="text-[10px] font-bold text-gray-500 mb-2 uppercase tracking-wide">Capacity Status</p>
+            <p className="text-[10px] font-bold text-gray-500 mb-2 uppercase tracking-wide">Availability</p>
             {[
               { color: '#10B981', label: 'High Availability' },
               { color: '#F59E0B', label: 'Moderate / Low' },
-              { color: '#EF4444', label: 'Full Capacity' },
-              { color: '#9CA3AF', label: 'Unknown Status' },
+              { color: '#EF4444', label: 'Full' },
+              { color: '#9CA3AF', label: 'Not tracked' },
             ].map(({ color, label }) => (
               <div key={label} className="flex items-center gap-2 mb-1.5 last:mb-0">
                 <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: color }} />
