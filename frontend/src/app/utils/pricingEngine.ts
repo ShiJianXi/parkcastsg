@@ -134,12 +134,19 @@ export function parseTextRateEquivalent(rate: string | undefined, currentHour: n
   const rawSegments = lower.split(/\n|;/).map(s => s.trim()).filter(s => s);
   const activeSegments = [];
 
+  // Tracks whether the most recent explicitly time-windowed segment was active.
+  // Segments without a time qualifier inherit this value so that sub-rate
+  // fragments (e.g. "$0.37 for sub. 10mins") are only included when their
+  // parent time block is active.
+  let prevActive = true;
+
   for (const segment of rawSegments) {
      const timeWindowMatch = segment.match(/([0-9]+(?:am|pm))\s*-\s*([0-9]+(?:am|pm))/i) || 
                              segment.match(/([0-9]{4})\s*-\s*([0-9]{4})/i);
      const aftMatch = segment.match(/aft(?:er)?\s*([0-9]+(?:am|pm))/i);
      
-     let inWindow = true; // default true if no explicit time window is assigned
+     const hasExplicitWindow = !!(timeWindowMatch || aftMatch);
+     let inWindow: boolean;
 
      if (timeWindowMatch) {
         const startMatch = timeWindowMatch[1];
@@ -153,12 +160,19 @@ export function parseTextRateEquivalent(rate: string | undefined, currentHour: n
             } else { // wraps past midnight e.g. 5pm-7am
                inWindow = currentHour >= startH || currentHour < endH;
             }
+        } else {
+            inWindow = prevActive;
         }
      } else if (aftMatch) {
          const startH = parseHourBoundary(aftMatch[1]);
-         if (startH !== null) {
-             inWindow = currentHour >= startH;
-         }
+         inWindow = startH !== null ? currentHour >= startH : prevActive;
+     } else {
+         // No explicit time window — inherit from the previous time-windowed segment
+         inWindow = prevActive;
+     }
+
+     if (hasExplicitWindow) {
+         prevActive = inWindow;
      }
      
      if (inWindow) {
@@ -226,7 +240,11 @@ function getTargetTextRate(carpark: Carpark, day: number): string | undefined {
   if (day === 6) { // Saturday
     return carpark.saturdayRate || carpark.weekdaysRate1;
   }
-  return carpark.weekdaysRate1; // Mon-Fri
+  // Mon-Fri: combine both weekday rate fields so that the time-window matching
+  // in parseTextRateEquivalent can select the correct block (e.g. after-5pm
+  // rates stored in weekdaysRate2 are invisible when only weekdaysRate1 is used).
+  const parts = [carpark.weekdaysRate1, carpark.weekdaysRate2].filter(Boolean);
+  return parts.length > 0 ? parts.join('\n') : undefined;
 }
 
 /**
