@@ -392,15 +392,19 @@ def predict_for_horizon(
 @router.get("/carparks/{carpark_number}/prediction")
 def predict_carpark(carpark_number: str):
     carpark_number = carpark_number.strip().upper()
+    if carpark_number.startswith("LTA_") or carpark_number.startswith("SUPP_"):
+        api_error(
+            status_code=422,
+            error_code="PREDICTION_NOT_SUPPORTED_FOR_NON_HDB",
+            message="Predictions are currently available for HDB carparks only.",
+            carpark_number=carpark_number,
+        )
+
     try:
         generated_at = datetime.now(ZoneInfo("Asia/Singapore"))
         mapping = get_static_mapping(carpark_number)
-        
-        if carpark_number.startswith("LTA_"):
-            carpark_rows = get_lta_latest_rows(carpark_number)
-        else:
-            carpark_rows = get_latest_carpark_rows(carpark_number)
-            
+        carpark_rows = get_latest_carpark_rows(carpark_number)
+
         weather_used = get_weather_for_area(
             mapping["area"], generated_at, carpark_number=carpark_number
         )
