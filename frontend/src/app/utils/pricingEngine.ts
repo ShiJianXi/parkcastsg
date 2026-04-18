@@ -230,20 +230,26 @@ export function parseTextRateEquivalent(rate: string | undefined, currentHour: n
   return null;
 }
 
+/** Returns true only when a rate string contains usable data (not missing/sentinel). */
+function hasRate(rate: string | undefined): rate is string {
+  return !!rate && rate.trim() !== '' && rate.trim() !== '-';
+}
+
 /**
  * Determines which text rate string perfectly applies for the current hour.
+ * @param now - SGT-adjusted Date, must match the `day` value passed in.
  */
-function getTargetTextRate(carpark: Carpark, day: number): string | undefined {
-  if (isSundayOrPublicHoliday(new Date())) {
-    return carpark.sundayPhRate || carpark.weekdaysRate1;
+function getTargetTextRate(carpark: Carpark, day: number, now: Date): string | undefined {
+  if (isSundayOrPublicHoliday(now)) {
+    return hasRate(carpark.sundayPhRate) ? carpark.sundayPhRate : carpark.weekdaysRate1;
   }
   if (day === 6) { // Saturday
-    return carpark.saturdayRate || carpark.weekdaysRate1;
+    return hasRate(carpark.saturdayRate) ? carpark.saturdayRate : carpark.weekdaysRate1;
   }
   // Mon-Fri: combine both weekday rate fields so that the time-window matching
   // in parseTextRateEquivalent can select the correct block (e.g. after-5pm
   // rates stored in weekdaysRate2 are invisible when only weekdaysRate1 is used).
-  const parts = [carpark.weekdaysRate1, carpark.weekdaysRate2].filter(Boolean);
+  const parts = [carpark.weekdaysRate1, carpark.weekdaysRate2].filter(hasRate);
   return parts.length > 0 ? parts.join('\n') : undefined;
 }
 
@@ -276,7 +282,7 @@ export function calculateLiveRates(carpark: Carpark): LivePrices {
 
   // --- NON-HDB CUSTOM PARSABLE RATES ---
   if (carpark.source === 'lta' || carpark.source === 'supplemental') {
-    const rateText = getTargetTextRate(carpark, day);
+    const rateText = getTargetTextRate(carpark, day, now);
     const parsed = parseTextRateEquivalent(rateText, hour);
 
     if (parsed !== null) {
