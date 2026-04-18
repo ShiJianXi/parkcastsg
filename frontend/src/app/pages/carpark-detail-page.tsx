@@ -120,11 +120,14 @@ export function CarparkDetailPage() {
         }
         // Entering this page only happens after "View full details",
         // so fetching prediction here ties the request to that action.
-        const rawDataPromise = getCarparkById(id, lat, lng)
+        const rawData = await getCarparkById(id, lat, lng)
+        const transformedCarpark = transformCarpark(rawData)
+        const canPredict = transformedCarpark.source === 'hdb'
 
-        // Predictions are currently supported for HDB and LTA (live) carparks.
-        // Supplemental carparks do not have live data and are excluded.
-        const canPredict = !id.startsWith('SUPP_')
+        const rawWeatherPromise = getWeatherForecast(
+          rawData.lat,
+          rawData.lng,
+        ).catch(() => null)
 
         const rawPredictionPromise = canPredict
           ? getCarparkPrediction(id).catch(
@@ -138,14 +141,11 @@ export function CarparkDetailPage() {
           )
           : Promise.resolve(null)
 
-        // Await the carpark details
-        const rawData = await rawDataPromise
-        const rawWeatherPromise = getWeatherForecast(
-          rawData.lat,
-          rawData.lng,
-        ).catch(() => null)
         if (isMounted) {
-          setCarpark(transformCarpark(rawData))
+          setCarpark(transformedCarpark)
+          if (!canPredict) {
+            setPredictionLoading(false)
+          }
         }
 
         // Await the prediction and weather promises in parallel after we have the carpark location, so they can load while the user is viewing the details.
@@ -156,7 +156,9 @@ export function CarparkDetailPage() {
         if (isMounted) {
           setWeather(rawWeather)
           setPrediction(rawPrediction)
-          setPredictionLoading(false)
+          if (canPredict) {
+            setPredictionLoading(false)
+          }
         }
       } catch (err) {
         if (isMounted) {
@@ -510,8 +512,8 @@ export function CarparkDetailPage() {
               </div>
             ) : (
               <div className='rounded-lg border border-gray-200 bg-gray-50 px-4 py-3 text-sm text-gray-600'>
-                {id?.startsWith('SUPP_')
-                  ? 'Predictions are not available for this carpark. Live lot availability data is required for forecasting, and is currently only provided by the HDB and LTA APIs.'
+                {carpark.source !== 'hdb'
+                  ? 'Predictions currently available for HDB carparks only.'
                   : 'Prediction data is not available yet for this carpark.'}
               </div>
             )}
