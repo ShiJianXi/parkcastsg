@@ -235,18 +235,21 @@ function hasRate(rate: string | undefined): rate is string {
   return !!rate && rate.trim() !== '' && rate.trim() !== '-';
 }
 
+/** Returns the first valid rate from the provided fields, or undefined if none. */
+function firstValidRate(...fields: (string | undefined)[]): string | undefined {
+  return fields.find(hasRate);
+}
+
 /**
  * Determines which text rate string perfectly applies for the current hour.
  * @param now - SGT-adjusted Date, must match the `day` value passed in.
  */
 function getTargetTextRate(carpark: Carpark, day: number, now: Date): string | undefined {
   if (isSundayOrPublicHoliday(now)) {
-    const parts = [carpark.sundayPhRate, carpark.weekdaysRate1, carpark.weekdaysRate2].filter(hasRate);
-    return parts.length > 0 ? parts[0] : undefined;
+    return firstValidRate(carpark.sundayPhRate, carpark.weekdaysRate1, carpark.weekdaysRate2);
   }
   if (day === 6) { // Saturday
-    const parts = [carpark.saturdayRate, carpark.weekdaysRate1, carpark.weekdaysRate2].filter(hasRate);
-    return parts.length > 0 ? parts[0] : undefined;
+    return firstValidRate(carpark.saturdayRate, carpark.weekdaysRate1, carpark.weekdaysRate2);
   }
   // Mon-Fri: combine both weekday rate fields so that the time-window matching
   // in parseTextRateEquivalent can select the correct block (e.g. after-5pm
