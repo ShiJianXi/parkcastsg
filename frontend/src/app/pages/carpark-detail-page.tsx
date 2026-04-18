@@ -28,6 +28,7 @@ import {
 } from '../utils/favoritesStorage'
 
 type PredictionHorizon = 15 | 30 | 60
+const PREDICTION_HORIZONS: PredictionHorizon[] = [15, 30, 60]
 
 interface PredictionRow {
   lotType: string
@@ -51,7 +52,7 @@ function PredictionSectionSkeleton() {
       </div>
 
       <div className='grid grid-cols-3 gap-3'>
-        {[15, 30, 60].map((horizon) => (
+        {PREDICTION_HORIZONS.map((horizon) => (
           <div
             key={horizon}
             className='rounded-lg bg-gray-50 px-3 py-4 text-center'
@@ -68,11 +69,13 @@ function PredictionSectionSkeleton() {
 
 function RateRow({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex gap-2 text-sm">
-      <span className="text-gray-500 whitespace-nowrap w-32 shrink-0">{label}</span>
-      <span className="text-gray-800">{value}</span>
+    <div className='flex gap-2 text-sm'>
+      <span className='text-gray-500 whitespace-nowrap w-32 shrink-0'>
+        {label}
+      </span>
+      <span className='text-gray-800'>{value}</span>
     </div>
-  );
+  )
 }
 
 export function CarparkDetailPage() {
@@ -130,15 +133,15 @@ export function CarparkDetailPage() {
         ).catch(() => null)
 
         const rawPredictionPromise = canPredict
-          ? getCarparkPrediction(id).catch(
-            (predictionErr) => {
+          ? getCarparkPrediction(id).catch((predictionErr) => {
               console.error('Prediction fetch error:', predictionErr)
               if (isMounted) {
-                setPredictionError('Prediction data is temporarily unavailable.')
+                setPredictionError(
+                  'Prediction data is temporarily unavailable.',
+                )
               }
               return null
-            },
-          )
+            })
           : Promise.resolve(null)
 
         if (isMounted) {
@@ -265,21 +268,26 @@ export function CarparkDetailPage() {
   // one card per lot type with 15 / 30 / 60 minute predictions side-by-side
   const predictionRows: PredictionRow[] = prediction
     ? prediction.predictions.reduce<PredictionRow[]>((rows, snapshot) => {
-      for (const lotPrediction of snapshot.by_lot_type) {
-        let row = rows.find((item) => item.lotType === lotPrediction.lot_type)
-        if (!row) {
-          row = { lotType: lotPrediction.lot_type, values: {} }
-          rows.push(row)
-        }
+        for (const lotPrediction of snapshot.by_lot_type) {
+          let row = rows.find((item) => item.lotType === lotPrediction.lot_type)
+          if (!row) {
+            row = { lotType: lotPrediction.lot_type, values: {} }
+            rows.push(row)
+          }
 
-        row.values[snapshot.horizon_minutes] = {
-          predictedAvailableLots: lotPrediction.predicted_available_lots,
-          predictedOccupancyRate: lotPrediction.predicted_occupancy_rate,
+          row.values[snapshot.horizon_minutes] = {
+            predictedAvailableLots: lotPrediction.predicted_available_lots,
+            predictedOccupancyRate: lotPrediction.predicted_occupancy_rate,
+          }
         }
-      }
-      return rows
-    }, [])
+        return rows
+      }, [])
     : []
+
+  const parseBaseTimestamp = (value: string) => {
+    const date = new Date(`${value}+08:00`)
+    return Number.isNaN(date.getTime()) ? null : date
+  }
 
   const formatPredictionTimestamp = (value: string) => {
     const date = new Date(value)
@@ -287,6 +295,26 @@ export function CarparkDetailPage() {
       return value
     }
     return date.toLocaleString()
+  }
+
+  const formatPredictionTargetTime = (
+    baseTimestamp: string | undefined,
+    horizon: PredictionHorizon,
+  ) => {
+    if (!baseTimestamp) {
+      return horizon === 60 ? '1 hour' : `${horizon} min`
+    }
+
+    const baseDate = parseBaseTimestamp(baseTimestamp)
+    if (!baseDate) {
+      return horizon === 60 ? '1 hour' : `${horizon} min`
+    }
+
+    const targetDate = new Date(baseDate.getTime() + horizon * 60 * 1000)
+    return targetDate.toLocaleTimeString([], {
+      hour: 'numeric',
+      minute: '2-digit',
+    })
   }
 
   const formatPredictedLots = (value: number) => {
@@ -365,7 +393,9 @@ export function CarparkDetailPage() {
                       <span
                         className='font-medium capitalize'
                         style={{
-                          color: getAvailabilityColor(carpark.availabilityLevel),
+                          color: getAvailabilityColor(
+                            carpark.availabilityLevel,
+                          ),
                         }}
                       >
                         {carpark.availabilityLevel === 'high'
@@ -450,10 +480,18 @@ export function CarparkDetailPage() {
               </h2>
             </div>
             {prediction && (
-              <p className='text-xs text-gray-500 mb-4'>
-                Generated at{' '}
-                {formatPredictionTimestamp(prediction.generated_at)}
-              </p>
+              <div className='mb-4 space-y-1 text-xs text-gray-500'>
+                <p>
+                  Generated at{' '}
+                  {formatPredictionTimestamp(prediction.generated_at)}
+                </p>
+                <p>
+                  Forecast base time{' '}
+                  {formatPredictionTimestamp(
+                    `${prediction.base_timestamp}+08:00`,
+                  )}
+                </p>
+              </div>
             )}
 
             {predictionLoading ? (
@@ -469,17 +507,14 @@ export function CarparkDetailPage() {
                     key={row.lotType}
                     className='rounded-lg border border-gray-200 p-4'
                   >
-                    <div className='mb-3'>
+                    <div className='mb-2'>
                       <p className='font-medium text-gray-900'>
                         {formatLotType(row.lotType)}
-                      </p>
-                      <p className='text-xs text-gray-500'>
-                        Predicted available lots over the next hour
                       </p>
                     </div>
 
                     <div className='grid grid-cols-3 gap-3'>
-                      {([15, 30, 60] as PredictionHorizon[]).map((horizon) => {
+                      {PREDICTION_HORIZONS.map((horizon) => {
                         const value = row.values[horizon]
                         return (
                           <div
@@ -487,20 +522,23 @@ export function CarparkDetailPage() {
                             className='rounded-lg bg-gray-50 px-3 py-4 text-center'
                           >
                             <p className='text-xs font-medium uppercase tracking-wide text-gray-500'>
-                              {horizon === 60 ? '1 hour' : `${horizon} min`}
+                              {formatPredictionTargetTime(
+                                prediction?.base_timestamp,
+                                horizon,
+                              )}
                             </p>
                             <p className='mt-2 text-2xl font-semibold text-gray-900'>
                               {value
                                 ? formatPredictedLots(
-                                  value.predictedAvailableLots,
-                                )
+                                    value.predictedAvailableLots,
+                                  )
                                 : '--'}
                             </p>
                             <p className='mt-1 text-xs text-gray-500'>
                               {value
                                 ? formatOccupancyRate(
-                                  value.predictedOccupancyRate,
-                                )
+                                    value.predictedOccupancyRate,
+                                  )
                                 : 'Pending model output'}
                             </p>
                           </div>
@@ -576,8 +614,9 @@ export function CarparkDetailPage() {
 
             <div className='flex items-center gap-3 mb-4 p-3 bg-gray-50 rounded-lg'>
               <div
-                className={`w-10 h-10 rounded-full flex items-center justify-center ${carpark.isSheltered ? 'bg-green-100' : 'bg-gray-200'
-                  }`}
+                className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                  carpark.isSheltered ? 'bg-green-100' : 'bg-gray-200'
+                }`}
               >
                 <span className='text-lg'>
                   {carpark.isSheltered ? '✓' : '✗'}
@@ -643,9 +682,14 @@ export function CarparkDetailPage() {
             variant='outline'
             aria-label={isSaved ? 'Remove from favorites' : 'Save to favorites'}
             aria-pressed={isSaved}
-            title={isSaved ? 'Saved to favorites on this device' : 'Save to favorites on this device'}
-            className={`px-6 py-6 rounded-lg ${isSaved ? 'bg-pink-50 border-pink-300 text-pink-600' : ''
-              }`}
+            title={
+              isSaved
+                ? 'Saved to favorites on this device'
+                : 'Save to favorites on this device'
+            }
+            className={`px-6 py-6 rounded-lg ${
+              isSaved ? 'bg-pink-50 border-pink-300 text-pink-600' : ''
+            }`}
           >
             <Heart className={`w-5 h-5 ${isSaved ? 'fill-current' : ''}`} />
           </Button>

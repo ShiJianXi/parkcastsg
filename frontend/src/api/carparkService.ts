@@ -26,6 +26,7 @@ export interface PredictionSnapshot {
 export interface CarparkPredictionResponse {
   carpark_number: string
   generated_at: string
+  base_timestamp: string
   predictions: PredictionSnapshot[]
 }
 

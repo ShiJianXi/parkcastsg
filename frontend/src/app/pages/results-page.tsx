@@ -92,7 +92,6 @@ export function ResultsPage() {
 
       // 3. Transform backend shape → frontend Carpark type
       let results: Carpark[] = raw.map(transformCarpark)
-      console.log('Fetched carparks:', results)
 
       // Fetch weather
       let isRainingLocally = false
