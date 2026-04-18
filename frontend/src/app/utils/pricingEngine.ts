@@ -141,9 +141,9 @@ export function parseTextRateEquivalent(rate: string | undefined, currentHour: n
   let prevActive = true;
 
   for (const segment of rawSegments) {
-     const timeWindowMatch = segment.match(/([0-9]+(?:am|pm))\s*-\s*([0-9]+(?:am|pm))/i) || 
+     const timeWindowMatch = segment.match(/([0-9]+(?:\.[0-9]+)?(?:am|pm))\s*-\s*([0-9]+(?:\.[0-9]+)?(?:am|pm))/i) || 
                              segment.match(/([0-9]{4})\s*-\s*([0-9]{4})/i);
-     const aftMatch = segment.match(/aft(?:er)?\s*([0-9]+(?:am|pm))/i);
+     const aftMatch = segment.match(/aft(?:er)?\s*([0-9]+(?:\.[0-9]+)?(?:am|pm))/i);
      
      const hasExplicitWindow = !!(timeWindowMatch || aftMatch);
      let inWindow: boolean;
@@ -241,10 +241,12 @@ function hasRate(rate: string | undefined): rate is string {
  */
 function getTargetTextRate(carpark: Carpark, day: number, now: Date): string | undefined {
   if (isSundayOrPublicHoliday(now)) {
-    return hasRate(carpark.sundayPhRate) ? carpark.sundayPhRate : carpark.weekdaysRate1;
+    const parts = [carpark.sundayPhRate, carpark.weekdaysRate1, carpark.weekdaysRate2].filter(hasRate);
+    return parts.length > 0 ? parts[0] : undefined;
   }
   if (day === 6) { // Saturday
-    return hasRate(carpark.saturdayRate) ? carpark.saturdayRate : carpark.weekdaysRate1;
+    const parts = [carpark.saturdayRate, carpark.weekdaysRate1, carpark.weekdaysRate2].filter(hasRate);
+    return parts.length > 0 ? parts[0] : undefined;
   }
   // Mon-Fri: combine both weekday rate fields so that the time-window matching
   // in parseTextRateEquivalent can select the correct block (e.g. after-5pm

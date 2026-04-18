@@ -72,9 +72,10 @@ export function CarparkCard({ carpark, isSelected, showRainIcon, onClick, onView
 
                         {/* Price */}
                         {isNonHdb ? (
-                            <span className="text-sm font-medium text-gray-900">
-                                {carpark.weekdaysRate1 ?? 'Rate varies'}
-                            </span>
+                            <div className="flex items-center gap-1 text-sm font-medium text-gray-900">
+                                <span>🚗</span>
+                                <span>{calculateLiveRates(carpark).car}</span>
+                            </div>
                         ) : (
                             <div className="flex items-center gap-3 text-sm font-medium text-gray-900">
                                 {(() => {
