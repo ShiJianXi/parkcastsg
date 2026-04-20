@@ -134,12 +134,19 @@ export function parseTextRateEquivalent(rate: string | undefined, currentHour: n
   const rawSegments = lower.split(/\n|;/).map(s => s.trim()).filter(s => s);
   const activeSegments = [];
 
+  // Tracks whether the most recent explicitly time-windowed segment was active.
+  // Segments without a time qualifier inherit this value so that sub-rate
+  // fragments (e.g. "$0.37 for sub. 10mins") are only included when their
+  // parent time block is active.
+  let prevActive = true;
+
   for (const segment of rawSegments) {
-     const timeWindowMatch = segment.match(/([0-9]+(?:am|pm))\s*-\s*([0-9]+(?:am|pm))/i) || 
+     const timeWindowMatch = segment.match(/([0-9]+(?:\.[0-9]+)?(?:am|pm))\s*-\s*([0-9]+(?:\.[0-9]+)?(?:am|pm))/i) || 
                              segment.match(/([0-9]{4})\s*-\s*([0-9]{4})/i);
-     const aftMatch = segment.match(/aft(?:er)?\s*([0-9]+(?:am|pm))/i);
+     const aftMatch = segment.match(/aft(?:er)?\s*([0-9]+(?:\.[0-9]+)?(?:am|pm))/i);
      
-     let inWindow = true; // default true if no explicit time window is assigned
+     const hasExplicitWindow = !!(timeWindowMatch || aftMatch);
+     let inWindow: boolean;
 
      if (timeWindowMatch) {
         const startMatch = timeWindowMatch[1];
@@ -153,12 +160,19 @@ export function parseTextRateEquivalent(rate: string | undefined, currentHour: n
             } else { // wraps past midnight e.g. 5pm-7am
                inWindow = currentHour >= startH || currentHour < endH;
             }
+        } else {
+            inWindow = prevActive;
         }
      } else if (aftMatch) {
          const startH = parseHourBoundary(aftMatch[1]);
-         if (startH !== null) {
-             inWindow = currentHour >= startH;
-         }
+         inWindow = startH !== null ? currentHour >= startH : prevActive;
+     } else {
+         // No explicit time window — inherit from the previous time-windowed segment
+         inWindow = prevActive;
+     }
+
+     if (hasExplicitWindow) {
+         prevActive = inWindow;
      }
      
      if (inWindow) {
@@ -216,17 +230,32 @@ export function parseTextRateEquivalent(rate: string | undefined, currentHour: n
   return null;
 }
 
+/** Returns true only when a rate string contains usable data (not missing/sentinel). */
+function hasRate(rate: string | undefined): rate is string {
+  return !!rate && rate.trim() !== '' && rate.trim() !== '-';
+}
+
+/** Returns the first valid rate from the provided fields, or undefined if none. */
+function firstValidRate(...fields: (string | undefined)[]): string | undefined {
+  return fields.find(hasRate);
+}
+
 /**
  * Determines which text rate string perfectly applies for the current hour.
+ * @param now - SGT-adjusted Date, must match the `day` value passed in.
  */
-function getTargetTextRate(carpark: Carpark, day: number): string | undefined {
-  if (isSundayOrPublicHoliday(new Date())) {
-    return carpark.sundayPhRate || carpark.weekdaysRate1;
+function getTargetTextRate(carpark: Carpark, day: number, now: Date): string | undefined {
+  if (isSundayOrPublicHoliday(now)) {
+    return firstValidRate(carpark.sundayPhRate, carpark.weekdaysRate1, carpark.weekdaysRate2);
   }
   if (day === 6) { // Saturday
-    return carpark.saturdayRate || carpark.weekdaysRate1;
+    return firstValidRate(carpark.saturdayRate, carpark.weekdaysRate1, carpark.weekdaysRate2);
   }
-  return carpark.weekdaysRate1; // Mon-Fri
+  // Mon-Fri: combine both weekday rate fields so that the time-window matching
+  // in parseTextRateEquivalent can select the correct block (e.g. after-5pm
+  // rates stored in weekdaysRate2 are invisible when only weekdaysRate1 is used).
+  const parts = [carpark.weekdaysRate1, carpark.weekdaysRate2].filter(hasRate);
+  return parts.length > 0 ? parts.join('\n') : undefined;
 }
 
 /**
@@ -258,7 +287,7 @@ export function calculateLiveRates(carpark: Carpark): LivePrices {
 
   // --- NON-HDB CUSTOM PARSABLE RATES ---
   if (carpark.source === 'lta' || carpark.source === 'supplemental') {
-    const rateText = getTargetTextRate(carpark, day);
+    const rateText = getTargetTextRate(carpark, day, now);
     const parsed = parseTextRateEquivalent(rateText, hour);
 
     if (parsed !== null) {
